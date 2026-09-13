@@ -1,0 +1,27 @@
+{
+  "name": "obsidian-google-drive-sync-for-internal-use",
+  "version": "0.1.0",
+  "description": "Collaborate with your team via Google Workspace shared drives within your company.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "sync",
+    "google-drive",
+    "shared-drive",
+    "google-workspace"
+  ],
+  "author": "Masato Uehara",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "20.19.41",
+    "esbuild": "0.21.5",
+    "obsidian": "1.13.0",
+    "tslib": "2.6.2",
+    "typescript": "5.4.5"
+  }
+}

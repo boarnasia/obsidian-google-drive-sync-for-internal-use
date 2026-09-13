@@ -1,0 +1,27 @@
+# build output
+main.js
+*.js.map
+
+# dependencies
+node_modules/
+
+# plugin local data
+data.json
+
+# os / editor
+.DS_Store
+.idea/
+.vscode/
+
+# secrets / local env
+.env
+.env.*
+*.hmac
+
+# local files
+/.local
+
+# graphipy
+graphify-out/cost.json
+graphify-out/.graphify_python
+graphify-out/.graphify_root

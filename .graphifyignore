@@ -1,0 +1,12 @@
+# コード構造は codebase-memory-mcp / CodeGraph が持つ
+src/
+scripts/
+*.mjs
+tsconfig.json
+package.json
+package-lock.json
+manifest.json
+versions.json
+
+# 外部ツールの定型文（プロジェクトの知識ではない）
+.claude/
