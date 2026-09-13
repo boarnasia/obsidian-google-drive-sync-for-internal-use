@@ -5,7 +5,9 @@
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "keywords": [
     "obsidian",
@@ -18,10 +20,11 @@
   "author": "Masato Uehara",
   "license": "MIT",
   "devDependencies": {
-    "@types/node": "20.19.41",
-    "esbuild": "0.21.5",
+    "@types/node": "22.20.2",
+    "esbuild": "0.28.2",
     "obsidian": "1.13.0",
     "tslib": "2.6.2",
-    "typescript": "5.4.5"
+    "typescript": "5.4.5",
+    "vitest": "5.0.0"
   }
 }

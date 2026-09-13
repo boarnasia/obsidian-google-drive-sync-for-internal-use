@@ -1,0 +1,211 @@
+/*
+ * プラグインの読み込み経路をヘッドレスで走らせる。`obsidian` はモックに差し替わる。
+ *
+ * 見ているのは「機能が正しいか」ではなく「起動して、設定画面が組み上がり、設定の
+ * 読み書きが噛み合っているか」——壊れると誰も設定画面に辿り着けなくなる層である。
+ */
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import GoogleDriveSyncPlugin from "../src/main";
+import { DEFAULT_SETTINGS, Settings } from "../src/settings";
+import { en, ja, setLanguage, t } from "../src/i18n";
+import type { App as ObsidianApp } from "obsidian";
+import { App, MockSettingDefinition } from "./helpers/obsidian-mock";
+
+/** manifest.json の最小形（プラグインは値を読まないが、型が要求する）。 */
+const MANIFEST = {
+  id: "google-drive-sync-for-internal-use",
+  name: "Google Drive Sync (Internal Use)",
+  author: "Masato Uehara",
+  version: "0.1.0",
+  minAppVersion: "1.13.0",
+  description: "test",
+};
+
+interface Tab {
+  getSettingDefinitions(): MockSettingDefinition[];
+  getControlValue(key: string): unknown;
+  setControlValue(key: string, value: unknown): void | Promise<void>;
+}
+
+/** モックが記録する、プラグインが Obsidian に登録したもの。 */
+interface Registered {
+  _commands: { id: string }[];
+  _ribbons: unknown[];
+  _settingTabs: Tab[];
+  saveData(d: unknown): Promise<void>;
+}
+
+type Loaded = GoogleDriveSyncPlugin & Registered;
+
+/**
+ * 起動した plugin は必ず控えておき、毎回 onunload する。自動同期が既定で有効な
+ * ため、解除しないとポーリングの interval が Node のイベントループを掴んだままになる。
+ */
+let loaded: GoogleDriveSyncPlugin[] = [];
+
+async function loadPlugin(data: Partial<Settings> | null = null): Promise<{ plugin: Loaded; tab: Tab }> {
+  const plugin = new GoogleDriveSyncPlugin(new App() as unknown as ObsidianApp, MANIFEST) as unknown as Loaded;
+  if (data) await plugin.saveData(data);
+  await plugin.onload();
+  loaded.push(plugin);
+  return { plugin, tab: plugin._settingTabs[0] };
+}
+
+/** 定義ツリーを平らにする（group / page は items を持つ）。 */
+function flatten(items: MockSettingDefinition[]): MockSettingDefinition[] {
+  const out: MockSettingDefinition[] = [];
+  const visit = (list: MockSettingDefinition[]): void => {
+    for (const item of list) {
+      out.push(item);
+      if (item.items) visit(item.items);
+    }
+  };
+  visit(items);
+  return out;
+}
+
+beforeEach(() => {
+  loaded = [];
+});
+
+afterEach(() => {
+  for (const plugin of loaded) plugin.onunload();
+  setLanguage("en");
+});
+
+describe("起動", () => {
+  it("onload が最後まで通り、入口が揃う", async () => {
+    const { plugin } = await loadPlugin();
+
+    expect(plugin._commands.some((c) => c.id === "sync-now")).toBe(true);
+    expect(plugin._ribbons).toHaveLength(1);
+    expect(plugin._settingTabs).toHaveLength(1);
+  });
+
+  it("未設定では同期する準備ができていない", async () => {
+    const { plugin } = await loadPlugin();
+
+    expect(plugin.controller.ready).toBe(false);
+    expect(plugin.controller.hasOAuthClient).toBe(false);
+  });
+
+  it("同期先が無ければ自動同期は静かに何もしない", async () => {
+    const { plugin } = await loadPlugin();
+    await plugin.runSync({ quiet: true }); // 例外も通知も出さずに戻ること
+
+    expect(plugin.settings.lastSyncAt).toBeNull();
+  });
+});
+
+describe("設定画面", () => {
+  it("設定定義が組み上がる", async () => {
+    const { tab } = await loadPlugin();
+    expect(flatten(tab.getSettingDefinitions()).length).toBeGreaterThan(0);
+  });
+
+  it("束ねられた全コントロールキーが設定に存在する", async () => {
+    // コントロールが名前で読み書きする以上、キーが設定に無ければ黙って壊れる。
+    const { tab } = await loadPlugin();
+    const keys = flatten(tab.getSettingDefinitions())
+      .map((i) => i.control?.key)
+      .filter((k): k is string => !!k);
+
+    expect(keys.length).toBeGreaterThan(0);
+    expect(keys.filter((k) => !(k in DEFAULT_SETTINGS))).toEqual([]);
+  });
+
+  it("同期先・マウント・言語の行がある", async () => {
+    const { tab } = await loadPlugin();
+    const names = flatten(tab.getSettingDefinitions()).map((i) => i.name);
+
+    expect(names).toContain(t.targetUrlName);
+    expect(names).toContain(t.mountName);
+    expect(names).toContain(t.languageName);
+  });
+
+  it.each([
+    ["E2EE", /passphrase|パスフレーズ|encrypt|暗号化/i],
+    ["バケットや HMAC", /bucket|hmac|バケット/i],
+    ["Drive スコープの選択", /scope|スコープ/i],
+  ])("%s の行は存在しない（一度外したものが復活していない）", async (_label, pattern) => {
+    const { tab } = await loadPlugin();
+    const names = flatten(tab.getSettingDefinitions())
+      .map((i) => i.name ?? "")
+      .join("|");
+
+    expect(names).not.toMatch(pattern);
+  });
+});
+
+describe("設定の読み書き", () => {
+  it("テキストは前後の空白を落として保存する", async () => {
+    const { plugin, tab } = await loadPlugin();
+    await tab.setControlValue("targetUrl", "  https://drive.google.com/drive/folders/abc  ");
+
+    expect(plugin.settings.targetUrl).toBe("https://drive.google.com/drive/folders/abc");
+  });
+
+  it("マウントフォルダも同じ", async () => {
+    const { plugin, tab } = await loadPlugin();
+    await tab.setControlValue("mountFolder", " 仕事 ");
+
+    expect(plugin.settings.mountFolder).toBe("仕事");
+  });
+
+  it("トグルは真偽値として入る", async () => {
+    const { plugin, tab } = await loadPlugin();
+    await tab.setControlValue("autoSync", false);
+
+    expect(plugin.settings.autoSync).toBe(false);
+  });
+
+  it("数値は整数として入り、0 以下は無視して前の値を保つ", async () => {
+    const { plugin, tab } = await loadPlugin();
+    await tab.setControlValue("pollMinutes", 5);
+    expect(plugin.settings.pollMinutes).toBe(5);
+
+    await tab.setControlValue("pollMinutes", 0);
+    expect(plugin.settings.pollMinutes).toBe(5);
+  });
+
+  it("読み戻しも同じキーで揃う", async () => {
+    const { tab } = await loadPlugin();
+    await tab.setControlValue("mountFolder", " 仕事 ");
+
+    expect(tab.getControlValue("mountFolder")).toBe("仕事");
+  });
+});
+
+describe("言語", () => {
+  it("設定画面から切り替えると文字列が入れ替わる", async () => {
+    const { tab } = await loadPlugin();
+
+    await tab.setControlValue("language", "ja");
+    expect(t.syncHeading).toBe(ja.syncHeading);
+
+    await tab.setControlValue("language", "en");
+    expect(t.syncHeading).toBe(en.syncHeading);
+  });
+
+  it("自動は Obsidian の申告に従う（モックは en）", async () => {
+    const { tab } = await loadPlugin();
+    await tab.setControlValue("language", "auto");
+
+    expect(t.syncHeading).toBe(en.syncHeading);
+  });
+});
+
+describe("保存済み設定の復元", () => {
+  it("保存済みの設定が読み戻り、欠けているキーは既定値で埋まる", async () => {
+    const { plugin } = await loadPlugin({ mountFolder: "仕事", pollMinutes: 7, language: "ja" });
+
+    expect(plugin.settings.mountFolder).toBe("仕事");
+    expect(plugin.settings.pollMinutes).toBe(7);
+    expect(plugin.settings.autoSync).toBe(DEFAULT_SETTINGS.autoSync);
+  });
+
+  it("保存済みの言語が起動時に効く", async () => {
+    await loadPlugin({ language: "ja" });
+    expect(t.syncHeading).toBe(ja.syncHeading);
+  });
+});

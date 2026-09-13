@@ -61,6 +61,17 @@
 
 `.obsidian/`（Vault の設定ディレクトリ）は常に同期対象外です。ここにはこのプラグインの `data.json` があり、あなたの Google アカウントのリフレッシュトークンが入っています。共有するとメンバー全員が互いの認証情報を持つことになるため、設定で変更できないようにしてあります。
 
+## 開発
+
+```sh
+npm ci
+npm test          # vitest（オフライン。ネットワークも Google アカウントも不要）
+npm run test:watch
+npm run build     # 型検査 → main.js を生成
+```
+
+テストは `tests/` にあります。`obsidian` モジュールは `tests/helpers/obsidian-mock.ts` に、Drive と Vault はインメモリの偽物（`tests/helpers/`）に差し替わるため、資格情報も通信もなしに同期の往復まで通しで動きます。
+
 ## ライセンスと派生元
 
 MIT License。

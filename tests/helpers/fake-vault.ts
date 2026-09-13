@@ -4,7 +4,7 @@
  * 通すからで、開いているファイルを壊さないことがこのモデルの要件だからである。
  * 出荷物ではない。
  */
-import { TAbstractFile, TFile, TFolder } from "./_mock-obsidian";
+import { TAbstractFile, TFile, TFolder } from "./obsidian-mock";
 
 export class FakeVault {
   configDir = ".obsidian";
