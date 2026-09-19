@@ -236,6 +236,8 @@ function targetPathSegments(target: DriveTarget): string[] {
   return target.path ?? [target.driveName || t.myDriveName, target.folderName];
 }
 
+const CREDENTIALS_URL = "https://console.cloud.google.com/apis/credentials";
+
 /** 名前で読み書きされる、宣言的コントロールに紐づく設定キー。 */
 type ControlKey = "language" | "oauthClientId" | "targetUrl" | "mountFolder" | "autoSync" | "pollMinutes";
 
@@ -373,10 +375,7 @@ class SettingTab extends PluginSettingTab {
             for (const step of [t.oauthStep1, t.oauthStep2, t.oauthStep3, t.oauthStep4]) {
               ol.createEl("li", { text: step });
             }
-            f.createEl("a", {
-              text: "console.cloud.google.com/apis/credentials",
-              href: "https://console.cloud.google.com/apis/credentials",
-            });
+            f.createEl("a", { text: CREDENTIALS_URL, href: CREDENTIALS_URL });
           }),
           visible: () => !this.plugin.controller.hasOAuthClient,
         },
@@ -436,7 +435,9 @@ class SettingTab extends PluginSettingTab {
           desc: this.targetStatus(),
           visible: () => c.connected,
           render: (setting) => {
-            this.refreshTargetViews.push(() => setting.setDesc(this.targetStatus()));
+            this.refreshTargetViews.push(() => {
+              setting.setDesc(this.targetStatus());
+            });
           },
         },
         {

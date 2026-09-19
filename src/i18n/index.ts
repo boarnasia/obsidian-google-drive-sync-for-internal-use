@@ -85,14 +85,6 @@ export function langOf(code: string): Lang | null {
   return isLang(base) ? base : null;
 }
 
-function storedLanguage(): string | null {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage?.getItem("language") ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function navigatorLanguage(): string | null {
   try {
     return typeof navigator === "undefined" ? null : navigator.language || null;
@@ -106,16 +98,12 @@ function navigatorLanguage(): string | null {
  *
  * `obsidianLanguage` は obsidian モジュールの `getLanguage()`——正統な答え——であり、
  * import ではなく引数で渡す。この module は Node のテストパイロットにも束ねられ、
- * そこには import 元の Obsidian が無いため。
- *
- * `localStorage["language"]` だけを読むのでは足りない。Obsidian はこのキーを
- * 利用者が言語を明示的に選んだときにしか書かず、OS から継承した場合——よくある方——は
- * キーが存在しないままになる。`getLanguage()` はそのキーの読み取りに OS からの
- * フォールバックを足したものである。下位の段は、値が何も渡されなかったときだけ効く。
+ * そこには import 元の Obsidian が無いため。onload が文字列を登録する前に
+ * `setLanguage` へ渡すので、下位の段が効くのは module 初期化時の仮の値だけである。
  */
 function resolveAuto(obsidianLanguage?: string | null): Lang {
   // 最初に得られたコードで決める。同梱していない言語なら、下位の段へは落とさず英語にする。
-  const code = codeOf(obsidianLanguage) ?? codeOf(storedLanguage()) ?? codeOf(navigatorLanguage());
+  const code = codeOf(obsidianLanguage) ?? codeOf(navigatorLanguage());
   return (code && langOf(code)) || "en";
 }
 

@@ -50,6 +50,10 @@ jobs:
             exit 1
           fi
 
+      # 審査スキャナーと同じ lint とテストが通らないものは配らない。
+      - run: npm run lint
+      - run: npm test
+
       - run: npm run build
 
       - name: Report asset digests
