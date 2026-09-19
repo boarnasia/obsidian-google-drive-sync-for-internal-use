@@ -8,11 +8,12 @@ import {
   debounce,
   getLanguage,
 } from "obsidian";
-import { DEFAULT_SETTINGS, Settings } from "./settings";
+import { DEFAULT_SETTINGS, DriveTarget, Settings } from "./settings";
 import { SyncController } from "./SyncController";
 import { SyncReport } from "./sync/types";
 import { relativeTime } from "./util/time";
-import { setLanguage, t } from "./i18n";
+import { parseFolderId } from "./providers/drive/DriveTarget";
+import { LANGUAGE_NAMES, isLang, setLanguage, t } from "./i18n";
 
 export default class GoogleDriveSyncPlugin extends Plugin {
   settings: Settings = DEFAULT_SETTINGS;
@@ -32,6 +33,13 @@ export default class GoogleDriveSyncPlugin extends Plugin {
    * 書いたパスを控えておき、戻ってきた分だけ消し込む。
    */
   private readonly selfWritten = new Set<string>();
+
+  /** 同期先の問い合わせ中。終わるまで同期を待たせ、古い同期先で走らせない。 */
+  private resolvingTarget: Promise<void> | null = null;
+  /** 入力が変わるたびに増やし、追い越された問い合わせの結果を捨てる。 */
+  private targetSeq = 0;
+  /** 直近の問い合わせの失敗。設定画面に出す。 */
+  targetError: string | null = null;
 
   async onload(): Promise<void> {
     await this.loadSettings();
@@ -58,6 +66,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     );
 
     this.applyPolling();
+    void this.resolveTarget();
   }
 
   onunload(): void {
@@ -101,6 +110,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
       if (!opts.quiet) new Notice(t.notice(t.syncAlreadyRunning));
       return;
     }
+    if (this.resolvingTarget) await this.resolvingTarget;
     if (opts.quiet && !this.controller.ready) return; // 未設定なら黙って見送る
 
     this.syncing = true;
@@ -148,6 +158,47 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     );
   }
 
+  // -------------------------------------------------------------- 同期先
+
+  get resolvingTargetNow(): boolean {
+    return this.resolvingTarget !== null;
+  }
+
+  /**
+   * 保存済みの URL を同期先に反映する。同期先は常に URL と一致させ、問い合わせに
+   * 失敗したら未設定に戻す。食い違ったまま残すと、画面の URL とは別のフォルダと
+   * 同期し続けてしまう。同期先が変われば次の同期は全アップロードになる（ADR-0004）。
+   */
+  resolveTarget(): Promise<void> {
+    const seq = ++this.targetSeq;
+    const run = async (): Promise<void> => {
+      const url = this.settings.targetUrl;
+      const id = parseFolderId(url);
+      if (this.settings.target && this.settings.target.folderId === id) {
+        this.targetError = null;
+        return;
+      }
+      let target: DriveTarget | null = null;
+      let error: string | null = null;
+      if (id && this.controller.connected) {
+        try {
+          target = await this.controller.lookupTarget(url);
+        } catch (e) {
+          error = e instanceof Error ? e.message : String(e);
+        }
+      }
+      if (seq !== this.targetSeq) return;
+      this.settings.target = target;
+      this.targetError = error;
+      await this.saveSettings();
+    };
+    const p = run().finally(() => {
+      if (this.resolvingTarget === p) this.resolvingTarget = null;
+    });
+    this.resolvingTarget = p;
+    return p;
+  }
+
   // -------------------------------------------------------------- ポーリング
 
   applyPolling(): void {
@@ -180,6 +231,11 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   }
 }
 
+/** 古い保存データには path が無いので、ドライブ名とフォルダ名で代える。 */
+function targetPathSegments(target: DriveTarget): string[] {
+  return target.path ?? [target.driveName || t.myDriveName, target.folderName];
+}
+
 /** 名前で読み書きされる、宣言的コントロールに紐づく設定キー。 */
 type ControlKey = "language" | "oauthClientId" | "targetUrl" | "mountFolder" | "autoSync" | "pollMinutes";
 
@@ -194,9 +250,24 @@ const asBoolean = (v: unknown): boolean => v === true;
 class SettingTab extends PluginSettingTab {
   /** 入力中のシークレット。保存するまで settings には入れない。 */
   private secretDraft: string | null = null;
+  /** 入力中に tab 全体を描き直すとフォーカスが外れるので、同期先の表示だけを書き換える。 */
+  private refreshTargetViews: (() => void)[] = [];
 
   constructor(app: App, private readonly plugin: GoogleDriveSyncPlugin) {
     super(app, plugin);
+  }
+
+  /** 貼り付けや打鍵のたびに問い合わせないよう、入力が止まってから。 */
+  private readonly resolveTargetSoon = debounce(
+    () => {
+      void this.plugin.resolveTarget().then(() => this.refreshTarget());
+    },
+    800,
+    true
+  );
+
+  private refreshTarget(): void {
+    for (const f of this.refreshTargetViews) f();
   }
 
   private notify(msg: string): void {
@@ -213,7 +284,7 @@ class SettingTab extends PluginSettingTab {
     const s = this.plugin.settings;
     switch (key as ControlKey) {
       case "language":
-        s.language = value === "ja" ? "ja" : value === "en" ? "en" : "auto";
+        s.language = isLang(value) ? value : "auto";
         setLanguage(s.language, getLanguage());
         break;
       case "oauthClientId":
@@ -264,6 +335,7 @@ class SettingTab extends PluginSettingTab {
   // ---------------------------------------------------------------- 定義
 
   getSettingDefinitions(): SettingDefinitionItem[] {
+    this.refreshTargetViews = [];
     return [this.generalGroup(), this.oauthGroup(), this.targetGroup(), this.syncGroup()];
   }
 
@@ -280,7 +352,7 @@ class SettingTab extends PluginSettingTab {
           control: {
             type: "dropdown",
             key: "language",
-            options: { auto: t.languageAuto, en: t.languageEn, ja: t.languageJa },
+            options: { auto: t.languageAuto, ...LANGUAGE_NAMES },
           },
         },
       ],
@@ -289,26 +361,24 @@ class SettingTab extends PluginSettingTab {
 
   private oauthGroup(): SettingDefinitionItem {
     const s = this.plugin.settings;
-    const configured = this.plugin.controller.hasOAuthClient;
     return {
       type: "group",
       heading: t.oauthHeading,
       items: [
         {
-          name: configured ? t.oauthConfigured : t.oauthSetupRequired,
+          name: t.oauthSetupRequired,
           desc: createFragment((f) => {
-            f.appendText(configured ? t.oauthConfiguredDesc : t.oauthSetupDesc);
-            if (!configured) {
-              const ol = f.createEl("ol");
-              for (const step of [t.oauthStep1, t.oauthStep2, t.oauthStep3, t.oauthStep4]) {
-                ol.createEl("li", { text: step });
-              }
-              f.createEl("a", {
-                text: "console.cloud.google.com/apis/credentials",
-                href: "https://console.cloud.google.com/apis/credentials",
-              });
+            f.appendText(t.oauthSetupDesc);
+            const ol = f.createEl("ol");
+            for (const step of [t.oauthStep1, t.oauthStep2, t.oauthStep3, t.oauthStep4]) {
+              ol.createEl("li", { text: step });
             }
+            f.createEl("a", {
+              text: "console.cloud.google.com/apis/credentials",
+              href: "https://console.cloud.google.com/apis/credentials",
+            });
           }),
+          visible: () => !this.plugin.controller.hasOAuthClient,
         },
         {
           name: t.oauthClientIdName,
@@ -360,18 +430,15 @@ class SettingTab extends PluginSettingTab {
       heading: t.targetHeading,
       items: [
         this.buttonRow(t.rowConnection, c.connected ? t.connected : t.notConnected, buttons),
+        this.targetUrlRow(),
         {
-          name: t.targetUrlName,
-          desc: t.targetUrlDesc,
-          control: { type: "text", key: "targetUrl", placeholder: t.targetUrlPlaceholder },
-        },
-        {
-          ...this.buttonRow(t.targetVerifyName, t.targetVerifyDesc, [
-            { label: t.btnVerify, onClick: () => this.verify() },
-          ]),
+          name: t.targetStatusName,
+          desc: this.targetStatus(),
           visible: () => c.connected,
+          render: (setting) => {
+            this.refreshTargetViews.push(() => setting.setDesc(this.targetStatus()));
+          },
         },
-        { name: t.targetStatusName, desc: this.targetStatus() },
         {
           name: t.mountName,
           desc: t.mountDesc,
@@ -386,16 +453,49 @@ class SettingTab extends PluginSettingTab {
   }
 
   /**
+   * URL は長く、横並びの狭い入力欄では肝心の ID が見切れるので、説明の下に全幅で置く。
+   * 宣言的な text コントロールでは行の組み方を変えられないため render を使う。
+   */
+  private targetUrlRow(): SettingDefinitionRender {
+    return {
+      name: t.targetUrlName,
+      desc: t.targetUrlDesc,
+      render: (setting) => {
+        setting.settingEl.addClass("gds-stacked-setting");
+        setting.addText((text) => {
+          text
+            .setPlaceholder(t.targetUrlPlaceholder)
+            .setValue(this.plugin.settings.targetUrl)
+            .onChange(async (v) => {
+              await this.setControlValue("targetUrl", v);
+              this.refreshTarget();
+              this.resolveTargetSoon();
+            });
+        });
+      },
+    };
+  }
+
+  /**
    * 同期先が実際に何なのかを、そのまま書く。共有ドライブのつもりでマイドライブの
    * フォルダを貼った場合、本人だけが同期できて他の誰にも届かず、しかも正常に
    * 動いているように見える。その取り違えはここでしか捕まえられない（ADR-0004）。
    */
-  private targetStatus(): string {
-    const target = this.plugin.settings.target;
+  private targetStatus(): string | DocumentFragment {
+    const s = this.plugin.settings;
+    const target = s.target;
+    const stale = !!target && target.folderId !== parseFolderId(s.targetUrl);
+    if (this.plugin.resolvingTargetNow || stale) return t.targetResolving;
+    if (this.plugin.targetError) return t.targetFailed(this.plugin.targetError);
     if (!target) return t.targetNotSet;
-    return target.driveId
-      ? t.targetOnSharedDrive(target.folderName, target.driveName)
-      : t.targetOnMyDrive(target.folderName);
+    // マイドライブは種類の欄に既に出るので、パスの先頭で繰り返さない。
+    const segments = targetPathSegments(target);
+    if (target.driveId) return t.targetOnSharedDrive(segments.join(" / "));
+    const path = (segments[0] === t.myDriveName ? segments.slice(1) : segments).join(" / ");
+    return createFragment((f) => {
+      f.createDiv({ text: t.targetOnMyDrive(path) });
+      f.createDiv({ text: t.targetMyDriveWarning });
+    });
   }
 
   private connect(): void {
@@ -403,16 +503,8 @@ class SettingTab extends PluginSettingTab {
       () => {
         this.notify(t.connectedNotice);
         this.update();
-      },
-      (e: unknown) => this.notify(e instanceof Error ? e.message : String(e))
-    );
-  }
-
-  private verify(): void {
-    this.plugin.controller.verifyTarget(this.plugin.settings.targetUrl).then(
-      () => {
-        this.notify(t.targetVerifiedNotice);
-        this.update();
+        // 接続前に貼られた URL は、ここで初めて問い合わせられる。
+        void this.plugin.resolveTarget().then(() => this.refreshTarget());
       },
       (e: unknown) => this.notify(e instanceof Error ? e.message : String(e))
     );

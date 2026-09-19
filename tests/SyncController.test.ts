@@ -271,6 +271,6 @@ describe("接続の解除", () => {
 
 describe("同期先の確認", () => {
   it("未接続では確認しない", async () => {
-    await expect(controller().verifyTarget("https://drive.google.com/drive/folders/x")).rejects.toThrow();
+    await expect(controller().lookupTarget("https://drive.google.com/drive/folders/x")).rejects.toThrow();
   });
 });

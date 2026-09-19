@@ -106,16 +106,12 @@ export class SyncController {
   // ---------------------------------------------------------------- 同期先
 
   /**
-   * 貼られた URL を確認して同期先として保存する。同期先が変わればベースラインの
-   * キーも変わり、次の同期は空から始まって全アップロードになる（ADR-0004）。
+   * 貼られた URL を Drive に問い合わせる。保存はしない。入力中に問い合わせが
+   * 重なるので、どの結果を採るかは呼び出し側が最新の入力と突き合わせて決める。
    */
-  async verifyTarget(url: string): Promise<DriveTarget> {
+  async lookupTarget(url: string): Promise<DriveTarget> {
     if (!this.connected) throw new Error(t.errNotConnected);
-    const target = await resolveDriveTarget(this.http, () => this.getToken(), url);
-    this.settings.targetUrl = url.trim();
-    this.settings.target = target;
-    await this.persist();
-    return target;
+    return resolveDriveTarget(this.http, () => this.getToken(), url);
   }
 
   // ------------------------------------------------------------------ 同期

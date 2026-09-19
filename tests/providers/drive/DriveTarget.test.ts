@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { HttpResponse, HttpSend } from "../../../src/providers/RemoteProvider";
 import { parseFolderId, resolveDriveTarget } from "../../../src/providers/drive/DriveTarget";
 import { FOLDER_MIME } from "../../helpers/fake-drive";
+import { t } from "../../../src/i18n";
 
 const FOLDER_ID = "15hqTj0tUn3tpfWeSYca0xcuNlEGDJrvW";
 const DRIVE_ID = "0AInotARealSharedDrive";
@@ -57,6 +58,7 @@ describe("resolveDriveTarget", () => {
       folderName: "営業部Vault",
       driveId: DRIVE_ID,
       driveName: "営業部",
+      path: ["…", "営業部Vault"],
     });
   });
 
@@ -105,6 +107,56 @@ describe("resolveDriveTarget", () => {
 
     await expect(resolve(http, "  ")).rejects.toThrow();
     expect(called).toBe(0);
+  });
+
+  describe("Drive 内のパス", () => {
+    /** ID ごとにメタデータを返す偽の Drive。載っていない ID は 404。 */
+    const tree = (files: Record<string, Record<string, unknown>>, driveName = "営業部"): HttpSend => async (_m, url) => {
+      if (url.includes("/drives/")) return reply(JSON.stringify({ name: driveName }));
+      const id = decodeURIComponent(url.match(/\/files\/([^?]+)/)![1]);
+      const file = files[id];
+      return file ? reply(JSON.stringify(file)) : reply("not found", 404);
+    };
+
+    it("共有ドライブでは、ドライブ名から同期先フォルダまでを並べる", async () => {
+      const target = await resolve(
+        tree({
+          [FOLDER_ID]: { id: FOLDER_ID, name: "Vault", mimeType: FOLDER_MIME, driveId: DRIVE_ID, parents: ["mid"] },
+          mid: { id: "mid", name: "チーム", parents: [DRIVE_ID] },
+        })
+      );
+
+      expect(target.path).toEqual(["営業部", "チーム", "Vault"]);
+    });
+
+    it("共有ドライブのルートそのものならドライブ名だけ", async () => {
+      const target = await resolve(
+        tree({ [FOLDER_ID]: { id: FOLDER_ID, name: "Drive", mimeType: FOLDER_MIME, driveId: FOLDER_ID } }),
+      );
+
+      expect(target.path).toEqual(["営業部"]);
+    });
+
+    it("マイドライブでは最上位をマイドライブとして示す", async () => {
+      const target = await resolve(
+        tree({
+          root: { id: "rootId" },
+          [FOLDER_ID]: { id: FOLDER_ID, name: "個人メモ", mimeType: FOLDER_MIME, parents: ["rootId"] },
+        })
+      );
+
+      expect(target.path).toEqual([t.myDriveName, "個人メモ"]);
+    });
+
+    it("親が見えなくなったら失敗にせず、辿れたところまでを返す", async () => {
+      const target = await resolve(
+        tree({
+          [FOLDER_ID]: { id: FOLDER_ID, name: "Vault", mimeType: FOLDER_MIME, driveId: DRIVE_ID, parents: ["hidden"] },
+        })
+      );
+
+      expect(target.path).toEqual(["…", "Vault"]);
+    });
   });
 
   it("名前が返らなくても ID で埋めて進める", async () => {

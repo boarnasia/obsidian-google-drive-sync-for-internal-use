@@ -29,7 +29,11 @@ interface DriveFileMeta {
   mimeType?: string;
   /** 共有ドライブ配下のファイルにのみ設定される。マイドライブなら欠落する。 */
   driveId?: string;
+  parents?: string[];
 }
+
+/** 親を辿る上限。循環や異常に深い階層で問い合わせが止まらなくなるのを防ぐ。 */
+const MAX_DEPTH = 32;
 
 async function getJson<T>(http: HttpSend, url: string, token: string, op: string): Promise<T> {
   const res = await http("GET", url, { authorization: `Bearer ${token}` });
@@ -59,7 +63,7 @@ export async function resolveDriveTarget(
   const token = await getToken();
   const file = await getJson<DriveFileMeta>(
     http,
-    `${API}/files/${encodeURIComponent(folderId)}?supportsAllDrives=true&fields=${encodeURIComponent("id,name,mimeType,driveId")}`,
+    `${API}/files/${encodeURIComponent(folderId)}?supportsAllDrives=true&fields=${encodeURIComponent("id,name,mimeType,driveId,parents")}`,
     token,
     "files.get"
   );
@@ -80,5 +84,50 @@ export async function resolveDriveTarget(
     driveName = drive.name || driveId;
   }
 
-  return { folderId: file.id || folderId, folderName: file.name || folderId, driveId, driveName };
+  const folderName = file.name || folderId;
+  const path = await resolvePath(http, token, { ...file, id: file.id || folderId, name: folderName }, driveName);
+  return { folderId: file.id || folderId, folderName, driveId, driveName, path };
+}
+
+/**
+ * ドライブの最上位から同期先フォルダまでの名前の並び。
+ *
+ * 表示のためだけに使うので、途中の親が見えない（共有されたフォルダの外側など）
+ * ときは失敗にせず、辿れたところまでを「…」で始めて返す。
+ */
+async function resolvePath(http: HttpSend, token: string, file: DriveFileMeta, driveName: string): Promise<string[]> {
+  const driveId = file.driveId ?? "";
+  // マイドライブの最上位は親を持たない点で「共有されたフォルダ」と見分けがつかないので、ID で比べる。
+  let rootId = "";
+  if (!driveId) {
+    try {
+      rootId = (await getJson<DriveFileMeta>(http, `${API}/files/root?fields=id`, token, "files.get")).id ?? "";
+    } catch {
+      rootId = "";
+    }
+  }
+  const isTop = (id: string | undefined): boolean => !!id && (id === driveId || id === rootId);
+  const top = driveId ? driveName : t.myDriveName;
+
+  if (isTop(file.id)) return [top];
+
+  const names = [file.name ?? ""];
+  let parent = file.parents?.[0];
+  for (let depth = 0; parent && depth < MAX_DEPTH; depth++) {
+    if (isTop(parent)) return [top, ...names];
+    let meta: DriveFileMeta;
+    try {
+      meta = await getJson<DriveFileMeta>(
+        http,
+        `${API}/files/${encodeURIComponent(parent)}?supportsAllDrives=true&fields=${encodeURIComponent("id,name,parents")}`,
+        token,
+        "files.get"
+      );
+    } catch {
+      break;
+    }
+    names.unshift(meta.name || parent);
+    parent = meta.parents?.[0];
+  }
+  return ["…", ...names];
 }
