@@ -176,6 +176,81 @@ describe("設定の読み書き", () => {
   });
 });
 
+describe("同期先の反映", () => {
+  const URL_A = "https://drive.google.com/drive/folders/aaa";
+  const URL_B = "https://drive.google.com/drive/folders/bbb";
+  const targetOf = (folderId: string) => ({ folderId, folderName: folderId, driveId: "d", driveName: "D" });
+
+  /** 接続済みにして、問い合わせを差し替える。 */
+  async function connectedPlugin(lookup: (url: string) => Promise<ReturnType<typeof targetOf>>) {
+    const { plugin, tab } = await loadPlugin({ driveToken: "refresh" });
+    plugin.controller.lookupTarget = lookup;
+    return { plugin, tab };
+  }
+
+  it("URL を問い合わせた結果が同期先になる", async () => {
+    const { plugin } = await connectedPlugin(async () => targetOf("aaa"));
+    plugin.settings.targetUrl = URL_A;
+    await plugin.resolveTarget();
+
+    expect(plugin.settings.target?.folderId).toBe("aaa");
+    expect(plugin.targetError).toBeNull();
+  });
+
+  it("問い合わせに失敗したら同期先を未設定に戻し、理由を残す", async () => {
+    const { plugin } = await connectedPlugin(async () => {
+      throw new Error("見つかりません");
+    });
+    plugin.settings.target = targetOf("old");
+    plugin.settings.targetUrl = URL_A;
+    await plugin.resolveTarget();
+
+    expect(plugin.settings.target).toBeNull();
+    expect(plugin.targetError).toBe("見つかりません");
+  });
+
+  it("URL を空にしたら同期先も未設定になる", async () => {
+    const { plugin } = await connectedPlugin(async () => targetOf("aaa"));
+    plugin.settings.target = targetOf("aaa");
+    plugin.settings.targetUrl = "";
+    await plugin.resolveTarget();
+
+    expect(plugin.settings.target).toBeNull();
+  });
+
+  it("追い越された問い合わせの結果は採らない", async () => {
+    let releaseA!: () => void;
+    const { plugin } = await connectedPlugin((url) =>
+      url === URL_A
+        ? new Promise((r) => (releaseA = () => r(targetOf("aaa"))))
+        : Promise.resolve(targetOf("bbb"))
+    );
+
+    plugin.settings.targetUrl = URL_A;
+    const first = plugin.resolveTarget();
+    plugin.settings.targetUrl = URL_B;
+    await plugin.resolveTarget();
+    releaseA();
+    await first;
+
+    expect(plugin.settings.target?.folderId).toBe("bbb");
+  });
+
+  it("未接続なら問い合わせず、同期先は未設定のまま", async () => {
+    const { plugin } = await loadPlugin();
+    let called = 0;
+    plugin.controller.lookupTarget = async () => {
+      called++;
+      return targetOf("aaa");
+    };
+    plugin.settings.targetUrl = URL_A;
+    await plugin.resolveTarget();
+
+    expect(called).toBe(0);
+    expect(plugin.settings.target).toBeNull();
+  });
+});
+
 describe("言語", () => {
   it("設定画面から切り替えると文字列が入れ替わる", async () => {
     const { tab } = await loadPlugin();

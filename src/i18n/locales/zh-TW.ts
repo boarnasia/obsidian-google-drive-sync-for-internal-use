@@ -1,0 +1,94 @@
+import type { Strings } from "./en";
+
+/** 中文（繁體，台灣）。 */
+export const zhTW: Strings = {
+  // ------------------------------------------------------------------ 全般
+  notice: (msg) => `Google Drive Sync: ${msg}`,
+  ribbonSyncNow: "Google Drive Sync：立即同步",
+  cmdSyncNow: "立即同步",
+  syncAlreadyRunning: "同步已在進行中…",
+  syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,
+  syncErrorCount: (n) => ` — ${n} 個錯誤`,
+  syncDeferred: (n) => ` — 暫緩 ${n} 項刪除`,
+  relWords: {
+    justNow: "剛剛",
+    minutes: (n: number) => `${n} 分鐘前`,
+    hours: (n: number) => `${n} 小時前`,
+    days: (n: number) => `${n} 天前`,
+  },
+
+  generalHeading: "一般",
+  languageName: "語言",
+  languageDesc: "「自動」會跟隨 Obsidian 的顯示語言（設定 → 關於 → 語言）。指令與功能區名稱會在下次重新載入後更新。",
+  languageAliases: ["語言", "language"],
+  languageAuto: "自動（跟隨 Obsidian）",
+
+  // --------------------------------------------------------- OAuth クライアント
+  oauthHeading: "Google OAuth 用戶端",
+  oauthSetupRequired: "需要設定",
+  oauthSetupDesc: "本外掛不附帶任何憑證。請向負責人索取貴組織的用戶端 ID 與密鑰，或自行建立一次：",
+  oauthStep1: "開啟 Google Cloud Console 的憑證頁面，選擇（或建立）一個專案。",
+  oauthStep2: "啟用「Google Drive API」。",
+  oauthStep3: "將 OAuth 同意畫面的使用者類型設為「內部」。",
+  oauthStep4: "建立憑證 → OAuth 用戶端 ID → 應用程式類型「電腦版應用程式」。",
+  oauthClientIdName: "OAuth 用戶端 ID",
+  oauthClientIdDesc: "貴組織 Google Cloud OAuth 用戶端的用戶端 ID。",
+  oauthClientIdAliases: ["google", "憑證", "登入", "credentials", "login"],
+  oauthClientSecretName: "OAuth 用戶端密鑰",
+  oauthClientSecretDesc: "Google「電腦版應用程式」類型的用戶端必須填寫。僅儲存在本儲存庫的外掛資料中，永遠不會被同步。",
+
+  // -------------------------------------------------------------------- 同期先
+  targetHeading: "同步目標",
+  rowConnection: "連線狀態",
+  connected: "✓ 已連線。",
+  notConnected: "未連線。",
+  btnConnect: "連線",
+  btnReconnect: "重新連線",
+  btnDisconnect: "中斷連線",
+  connectedNotice: "已連線到 Google 雲端硬碟。",
+  disconnectedNotice: "已中斷與 Google 雲端硬碟的連線。",
+
+  targetUrlName: "資料夾 URL",
+  targetUrlDesc: "在瀏覽器中開啟共用雲端硬碟的資料夾，並將其網址貼到這裡。團隊所有成員必須使用同一個資料夾。",
+  targetUrlPlaceholder: "https://drive.google.com/drive/folders/…",
+  myDriveName: "我的雲端硬碟",
+  targetStatusName: "同步目標",
+  targetNotSet: "尚未設定。請在上方貼上資料夾 URL。",
+  targetResolving: "正在雲端硬碟中查詢該資料夾…",
+  targetFailed: (reason) => `✗ ${reason}`,
+  targetOnSharedDrive: (path) => `共用雲端硬碟 - ${path}`,
+  targetOnMyDrive: (path) => `我的雲端硬碟 - ${path}`,
+  targetMyDriveWarning: "⚠「我的雲端硬碟」（個人）中的檔案不會傳給其他人。團隊同步請使用共用雲端硬碟中的資料夾。",
+
+  mountName: "本機資料夾",
+  mountDesc:
+    "將本儲存庫中的哪個資料夾作為共用儲存庫。其內容對應到同步目標資料夾的內容；資料夾名稱本身不會出現在雲端硬碟上，因此每個人都可以使用不同的名稱。留空表示整個儲存庫。",
+  mountPlaceholder: "（整個儲存庫）",
+  mountMapping: (local) => `${local}/ ⇄ 同步目標資料夾`,
+  mountMappingWholeVault: "整個儲存庫 ⇄ 同步目標資料夾",
+
+  // -------------------------------------------------------------------- 同期
+  syncHeading: "同步",
+  syncNowName: "立即同步",
+  syncNowDescNever: "上次同步：從未",
+  syncNowDesc: (rel, abs) => `上次同步：${rel}（${abs}）`,
+  autoSyncName: "自動同步",
+  autoSyncDesc: "你的變更會隨時上傳，其他人的變更會定時取得。",
+  pollName: "檢查變更的間隔",
+  pollDesc: "檢查其他人變更的間隔（分鐘）。沒有變更時，每次檢查只需一個輕量請求。",
+  pollUnit: "分鐘",
+  pollInvalid: "請輸入 1 或更大的整數（分鐘）。",
+
+  // ---------------------------------------------------------- 利用者に出る失敗
+  errNoOauthClient: "尚未設定 OAuth 用戶端。請在設定中輸入用戶端 ID 與密鑰後再連線。",
+  errNoRefreshToken: "未傳回更新權杖。請在 myaccount.google.com 撤銷本應用程式的存取權，然後重新連線。",
+  errNotConnected: "請先連線到 Google 雲端硬碟。",
+  errNoTarget: "尚未設定同步目標。請在設定中貼上資料夾 URL。",
+  errTargetEmpty: "請貼上資料夾的 URL（或 ID）。",
+  errTargetNotFound: "找不到該資料夾，或此帳戶無權查看。",
+  errTargetForbidden: "此帳戶無權開啟該資料夾。",
+  errTargetNotFolder: "該連結指向檔案而非資料夾。請開啟資料夾本身並複製其網址。",
+  errEmptyPath: "路徑為空",
+  errOutsideMount: (path) => `拒絕操作同步資料夾以外的路徑：${path}`,
+  errLocalMissing: (path) => `本機檔案已不存在：${path}`,
+};

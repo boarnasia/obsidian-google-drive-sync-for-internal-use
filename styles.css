@@ -1,1 +1,15 @@
-/* google-drive-sync-for-internal-use — プラグイン固有のスタイルは現時点で無し */
+/* google-drive-sync-for-internal-use */
+
+/* 長い値を見切れさせないため、コントロールを説明の下に全幅で置く。 */
+.gds-stacked-setting {
+  flex-wrap: wrap;
+}
+
+.gds-stacked-setting .setting-item-control {
+  flex-basis: 100%;
+  padding-top: var(--size-4-2);
+}
+
+.gds-stacked-setting .setting-item-control input {
+  width: 100%;
+}
