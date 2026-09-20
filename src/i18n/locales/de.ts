@@ -84,6 +84,39 @@ export const de: Strings = {
   pollUnit: "Minuten",
   pollInvalid: "Gib eine ganze Zahl von Minuten ein, mindestens 1.",
 
+  // ------------------------------------------------------------ 同期管理パネル
+  panelTitle: "Synchronisierungsverwaltung",
+  panelOpen: "Synchronisierungsverwaltung öffnen",
+  panelNeedsConnection: "Nicht verbunden. Verbinde dich zuerst in den Plugin-Einstellungen mit Google Drive.",
+  panelNeedsTarget: "Noch kein Synchronisierungsziel. Füge die Ordner-URL in den Plugin-Einstellungen ein.",
+  panelChecking: "Änderungen werden geprüft…",
+  panelReady: "✓ Bereit zum Synchronisieren.",
+  panelBlocked: "⚠ Uploads sind angehalten.",
+  reasonNoBaseline:
+    "Dieser Tresor wurde noch nicht geklont, und auf beiden Seiten liegen Dateien. Führe zuerst Clone aus, um die entfernte Seite zu holen.",
+  reasonVaultEmpty:
+    "Der Tresor ist leer, aber die Referenz führt noch Dateien. Hole sie mit Clone zurück oder bestätige die Löschungen unten.",
+  reasonDeleteGuard: "Diese Synchronisierung würde mehr Dateien löschen, als das Sicherheitslimit erlaubt.",
+  panelActions: "Aktionen",
+  btnClone: "Clone",
+  btnRefresh: "Aktualisieren",
+  panelLastSynced: (rel) => `Zuletzt synchronisiert: ${rel}`,
+  panelCheckedAt: (rel) => `Geprüft: ${rel}`,
+  panelHeldDeletes: (n) => `Zurückgehaltene Löschungen (${n})`,
+  panelHeldDeletesDesc:
+    "Es wird nichts gelöscht, bis du es bestätigst. Bestätigte Dateien landen im Papierkorb: Drive leert ihn nach 30 Tagen, danach kann ein Administrator sie noch 25 Tage wiederherstellen.",
+  btnSelectAll: "Alle auswählen",
+  btnApproveDeletes: (n) => `${n} ausgewählte löschen`,
+  panelChanges: "Änderungen",
+  panelUpload: "Hochladen",
+  panelDownload: "Herunterladen",
+  panelConflict: "Konflikt",
+  panelLocalOnly: "Nur lokal",
+  panelNoChanges: "Nichts zu synchronisieren.",
+  panelMore: (n) => `…und ${n} weitere`,
+  cloneDone: (down, conflicts, localOnly) =>
+    `clone fertig — ↓${down}, ${conflicts} Konfliktkopie(n), ${localOnly} nur lokale Datei(en)`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "Kein OAuth-Client eingerichtet – gib Client-ID und Secret in den Einstellungen ein und verbinde dich dann.",

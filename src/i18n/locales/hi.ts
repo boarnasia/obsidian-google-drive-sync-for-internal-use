@@ -83,6 +83,39 @@ export const hi: Strings = {
   pollUnit: "मिनट",
   pollInvalid: "1 या उससे अधिक पूर्ण संख्या (मिनट) दर्ज करें।",
 
+  // ------------------------------------------------------------ 同期管理パネル
+  panelTitle: "सिंक प्रबंधन",
+  panelOpen: "सिंक प्रबंधन खोलें",
+  panelNeedsConnection: "कनेक्ट नहीं है। पहले प्लगइन सेटिंग्स में Google Drive से कनेक्ट करें।",
+  panelNeedsTarget: "अभी कोई सिंक लक्ष्य नहीं है। प्लगइन सेटिंग्स में फ़ोल्डर URL चिपकाएँ।",
+  panelChecking: "बदलाव जाँचे जा रहे हैं…",
+  panelReady: "✓ सिंक के लिए तैयार।",
+  panelBlocked: "⚠ अपलोड रोक दिए गए हैं।",
+  reasonNoBaseline:
+    "इस वॉल्ट का clone अभी नहीं हुआ है और दोनों ओर फ़ाइलें हैं। पहले clone चलाकर रिमोट को यहाँ लाएँ।",
+  reasonVaultEmpty:
+    "वॉल्ट खाली है, पर आधार सूची में फ़ाइलें अब भी दर्ज हैं। clone से वापस लाएँ, या नीचे के हटाने को मंज़ूरी दें।",
+  reasonDeleteGuard: "यह सिंक सुरक्षा सीमा से अधिक फ़ाइलें हटाने वाला है।",
+  panelActions: "कार्य",
+  btnClone: "clone",
+  btnRefresh: "ताज़ा करें",
+  panelLastSynced: (rel) => `पिछला सिंक: ${rel}`,
+  panelCheckedAt: (rel) => `जाँच: ${rel}`,
+  panelHeldDeletes: (n) => `रोके गए हटाने (${n})`,
+  panelHeldDeletesDesc:
+    "आपकी मंज़ूरी से पहले कुछ नहीं हटाया जाता। मंज़ूर की गई फ़ाइलें ट्रैश में जाती हैं: Drive का ट्रैश 30 दिन बाद खाली होता है, और उसके 25 दिन बाद तक व्यवस्थापक उन्हें लौटा सकते हैं।",
+  btnSelectAll: "सभी चुनें",
+  btnApproveDeletes: (n) => `चुनी हुई ${n} हटाएँ`,
+  panelChanges: "बदलाव",
+  panelUpload: "अपलोड",
+  panelDownload: "डाउनलोड",
+  panelConflict: "टकराव",
+  panelLocalOnly: "केवल स्थानीय",
+  panelNoChanges: "सिंक करने को कुछ नहीं है।",
+  panelMore: (n) => `…और ${n} अन्य`,
+  cloneDone: (down, conflicts, localOnly) =>
+    `clone पूरा — ↓${down}, ${conflicts} टकराव प्रतियाँ, ${localOnly} केवल-स्थानीय फ़ाइलें`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient: "कोई OAuth क्लाइंट सेट नहीं है — सेटिंग्स में क्लाइंट ID और सीक्रेट दर्ज करें, फिर कनेक्ट करें।",
   errNoRefreshToken:

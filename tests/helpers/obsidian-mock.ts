@@ -15,7 +15,12 @@ export class App {
     on: () => ({}),
     getName: () => "Test Vault",
   };
-  workspace = { getActiveFile: () => null };
+  workspace = {
+    getActiveFile: () => null,
+    getLeavesOfType: (_type: string): unknown[] => [],
+    getRightLeaf: (_split: boolean): unknown => null,
+    revealLeaf: (_leaf: unknown): void => {},
+  };
 }
 export class Notice {
   constructor(_msg: string) {}
@@ -30,7 +35,7 @@ export async function requestUrl(_o: unknown): Promise<unknown> {
   return { status: 200, headers: {}, arrayBuffer: new ArrayBuffer(0), text: "" };
 }
 
-class Component {
+export class Component {
   inputEl: { type: string } = { type: "text" };
   setValue() { return this; }
   setPlaceholder() { return this; }
@@ -45,7 +50,11 @@ class Component {
 }
 
 export class Setting {
+  settingEl = makeEl();
+  infoEl = makeEl();
+  descEl = makeEl();
   constructor(_containerEl?: unknown) {}
+  setDisabled() { return this; }
   setName() { return this; }
   setDesc() { return this; }
   setHeading() { return this; }
@@ -58,7 +67,19 @@ export class Setting {
 export class SettingGroup {}
 
 function makeEl(): Record<string, unknown> {
-  return { empty() {}, createEl() { return makeEl(); }, createDiv() { return makeEl(); }, setText() {}, appendChild() {}, appendText() {} };
+  return {
+    empty() {},
+    createEl() { return makeEl(); },
+    createDiv() { return makeEl(); },
+    createSpan() { return makeEl(); },
+    addClass() {},
+    removeClass() {},
+    addEventListener() {},
+    setText() {},
+    appendChild() {},
+    appendText() {},
+    checked: false,
+  };
 }
 
 /**
@@ -139,6 +160,7 @@ export class Plugin {
   _commands: { id: string }[] = [];
   _ribbons: unknown[] = [];
   _settingTabs: { display: () => void }[] = [];
+  _views: { type: string; factory: unknown }[] = [];
   _events: unknown[] = [];
   _intervals: unknown[] = [];
   private _data: unknown = null;
@@ -149,6 +171,7 @@ export class Plugin {
   addRibbonIcon(_icon: string, _title: string, cb: unknown) { this._ribbons.push(cb); return makeEl(); }
   addCommand(cmd: { id: string }) { this._commands.push(cmd); return cmd; }
   addSettingTab(tab: { display: () => void }) { this._settingTabs.push(tab); }
+  registerView(type: string, factory: unknown) { this._views.push({ type, factory }); }
   registerEvent(ref: unknown) { this._events.push(ref); }
   registerInterval(id: unknown) { this._intervals.push(id); return id; }
   async loadData() { return this._data; }
@@ -156,6 +179,19 @@ export class Plugin {
   async onload() {}
   onunload() {}
 }
+
+/** サイドバーのビューが継承する土台。描画そのものはヘッドレスでは検証しない。 */
+export class ItemView {
+  containerEl = { children: [makeEl(), makeEl()] };
+  constructor(public leaf: unknown) {}
+  getViewType(): string { return ""; }
+  getDisplayText(): string { return ""; }
+  getIcon(): string { return ""; }
+}
+
+export class WorkspaceLeaf {}
+
+export class ButtonComponent extends Component {}
 
 /**
  * Real classes, not interfaces: the store narrows with `instanceof TFile` /

@@ -6,7 +6,7 @@ import { TokenSet, refreshAccessToken } from "./providers/google/oauth";
 import { googleLoginLoopback } from "./obsidian/googleLogin";
 import { HttpSend } from "./providers/RemoteProvider";
 import { SyncEngine } from "./sync/SyncEngine";
-import { SyncReport } from "./sync/types";
+import { SyncPlan, SyncReport, SyncStateData } from "./sync/types";
 import { ObsidianLocalStore } from "./obsidian/ObsidianLocalStore";
 import { requestUrlHttp } from "./obsidian/requestUrlHttp";
 import { withRetry } from "./util/retry";
@@ -130,24 +130,52 @@ export class SyncController {
   }
 
   /** 手動、およびローカルの変更を起点とする同期。必ず走る。 */
-  async sync(): Promise<SyncReport> {
+  async sync(opts: { approvedDeletes?: ReadonlySet<string> } = {}): Promise<SyncReport> {
     const target = this.requireTarget();
 
     // 起点は走査の *前* に取る。後から取ると、走査中に入った変更を見落とす。
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
-    const engine = new SyncEngine(
+    const key = target.folderId;
+    const { state, report } = await this.engine(target).sync(this.settings.syncState[key] ?? {}, opts);
+    await this.commit(key, state, freshToken);
+    return report;
+  }
+
+  /**
+   * リモートをローカルに再現する（ADR-0005）。ベースラインは結果で作り直す。
+   *
+   * 初回接続と、状態が壊れたときの復旧の両方がここを通る。ローカルにしか無い
+   * ファイルは消さず、報告に載せて呼び出し側が分類できるようにする。
+   */
+  async clone(): Promise<SyncReport> {
+    const target = this.requireTarget();
+    const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
+
+    const key = target.folderId;
+    const { state, report } = await this.engine(target).clone(this.settings.syncState[key] ?? {});
+    await this.commit(key, state, freshToken);
+    return report;
+  }
+
+  /** 適用せずに、今の同期が何をするかを数える。サイドバーの表示に使う。 */
+  async plan(): Promise<SyncPlan> {
+    const target = this.requireTarget();
+    return this.engine(target).plan(this.settings.syncState[target.folderId] ?? {});
+  }
+
+  private engine(target: DriveTarget): SyncEngine {
+    return new SyncEngine(
       new ObsidianLocalStore(this.app, this.settings.mountFolder),
       new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http),
       () => new Date()
     );
+  }
 
-    const key = target.folderId;
-    const { state, report } = await engine.sync(this.settings.syncState[key] ?? {});
+  private async commit(key: string, state: SyncStateData, freshToken: string): Promise<void> {
     this.settings.syncState[key] = state;
     this.settings.changeToken[key] = freshToken;
     this.settings.lastSyncAt = Date.now();
     await this.persist();
-    return report;
   }
 }

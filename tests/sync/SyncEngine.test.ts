@@ -21,7 +21,18 @@ beforeEach(() => {
   R = new FakeRemote();
 });
 
-const sync = (prev: SyncStateData = {}) => new SyncEngine(L, R, FIXED).sync(prev);
+const engine = (): SyncEngine => new SyncEngine(L, R, FIXED);
+const sync = (prev: SyncStateData = {}, opts?: { approvedDeletes?: ReadonlySet<string> }) =>
+  engine().sync(prev, opts);
+const clone = (prev: SyncStateData = {}) => engine().clone(prev);
+
+/**
+ * 「前回は同期できていたが、その後どちらも変わった」状態のベースライン。
+ * ベースラインが無いまま同期しようとすると、今は clone を求めて止まる（ADR-0005）ので、
+ * 競合そのものを見たいテストはこれで足場を作る。
+ */
+const stale = (...paths: string[]): SyncStateData =>
+  Object.fromEntries(paths.map((p) => [p, { localHash: "古いハッシュ", remoteVersion: "古い版" }]));
 
 /** 一度同期して、以後の「ベースライン」を作る。 */
 const baseline = async (): Promise<SyncStateData> => (await sync()).state;
@@ -79,6 +90,7 @@ describe("片側だけが変わったとき", () => {
 describe("削除の伝播", () => {
   it("ローカルで消したらリモートでも消え、ベースラインからも消える", async () => {
     await L.write("a.md", enc("x"));
+    await L.write("b.md", enc("y"));
     const s1 = await baseline();
 
     await L.delete("a.md");
@@ -102,11 +114,11 @@ describe("削除の伝播", () => {
 });
 
 describe("競合", () => {
-  it("両側にあっても内容が同じなら競合ではない（既存 Vault の初回同期）", async () => {
+  it("両側にあっても内容が同じなら競合ではない", async () => {
     await L.write("a.md", enc("same"));
     await R.put("a.md", enc("same"));
 
-    const { report, state } = await sync();
+    const { report, state } = await sync(stale("a.md"));
     expect(report.conflicts).toHaveLength(0);
     expect(state["a.md"]).toBeDefined(); // 黙ってベースラインに採用される
   });
@@ -117,7 +129,7 @@ describe("競合", () => {
     await R.put("a.md", enc("remote"));
     R.setMtime("a.md", 200);
 
-    const { report } = await sync();
+    const { report } = await sync(stale("a.md"));
 
     expect(L.text("a.md")).toBe("remote");
     expect(L.text(`a.conflict-${STAMP}.md`)).toBe("local");
@@ -131,7 +143,7 @@ describe("競合", () => {
     await R.put("a.md", enc("remote"));
     R.setMtime("a.md", 200);
 
-    const { report } = await sync();
+    const { report } = await sync(stale("a.md"));
 
     expect(L.text("a.md")).toBe("local");
     expect(L.text(`a.conflict-${STAMP}.md`)).toBe("remote");
@@ -146,7 +158,7 @@ describe("競合", () => {
     await R.put("a.md", enc("remote"));
     R.setMtime("a.md", undefined);
 
-    await sync();
+    await sync(stale("a.md"));
 
     expect(L.text("a.md")).toBe("local");
     expect(L.text(`a.conflict-${STAMP}.md`)).toBe("remote");
@@ -156,7 +168,7 @@ describe("競合", () => {
     await L.write("a.md", enc("local"));
     await R.put("a.md", enc("remote"));
 
-    await sync();
+    await sync(stale("a.md"));
     const bodies = [...L.store.keys()].map((p) => L.text(p)).sort();
     expect(bodies).toEqual(["local", "remote"]);
   });
@@ -292,6 +304,169 @@ describe("削除の安全上限", () => {
 
     const { report } = await new SyncEngine(L, R, FIXED, () => 2).sync(s1);
     expect(report.deferredDeletes).toHaveLength(3);
+  });
+});
+
+describe("clone — リモートをローカルに再現する（非破壊）", () => {
+  it("リモートのファイルを取得し、ベースラインを作り直す", async () => {
+    await R.put("a.md", enc("x"));
+    await R.put("メモ/b.md", enc("y"));
+
+    const { state, report } = await clone();
+
+    expect(L.text("a.md")).toBe("x");
+    expect(L.text("メモ/b.md")).toBe("y");
+    expect(report.downloaded.sort()).toEqual(["a.md", "メモ/b.md"]);
+    expect(Object.keys(state).sort()).toEqual(["a.md", "メモ/b.md"]);
+  });
+
+  it("ローカルにしか無いファイルは消さず、分類待ちとして返す", async () => {
+    await R.put("a.md", enc("x"));
+    await L.write("個人メモ.md", enc("私的"));
+
+    const { report, state } = await clone();
+
+    expect(L.text("個人メモ.md")).toBe("私的"); // 消えない
+    expect(report.localOnly).toEqual(["個人メモ.md"]);
+    expect(state["個人メモ.md"]).toBeUndefined(); // ベースラインには載せない
+  });
+
+  it("同名で内容が違えば、ローカル版を競合コピーに退避してからリモート版を置く", async () => {
+    await L.write("a.md", enc("私の版"));
+    await R.put("a.md", enc("チームの版"));
+
+    const { report } = await clone();
+
+    expect(L.text("a.md")).toBe("チームの版");
+    expect(L.text(`a.conflict-${STAMP}.md`)).toBe("私の版");
+    expect(report.conflicts).toEqual([{ path: "a.md", conflictPath: `a.conflict-${STAMP}.md` }]);
+    expect(report.localOnly).toContain(`a.conflict-${STAMP}.md`); // 退避した版も分類の対象
+  });
+
+  it("同じ秒に複数を退避しても名前がぶつからない", async () => {
+    await L.write("a.md", enc("私の版"));
+    await L.write(`a.conflict-${STAMP}.md`, enc("前回の退避"));
+    await R.put("a.md", enc("チームの版"));
+
+    await clone();
+
+    expect(L.text(`a.conflict-${STAMP}.md`)).toBe("前回の退避"); // 上書きしない
+    expect(L.text(`a.conflict-${STAMP}-2.md`)).toBe("私の版");
+  });
+
+  it("内容が同じファイルはダウンロードし直さない", async () => {
+    await L.write("a.md", enc("同じ"));
+    await R.put("a.md", enc("同じ"));
+
+    const { report, state } = await clone();
+
+    expect(report.downloaded).toEqual([]);
+    expect(report.conflicts).toEqual([]);
+    expect(state["a.md"]).toBeDefined();
+  });
+
+  it("空の Vault に対しては、ただの取得になる（今回の復旧経路）", async () => {
+    await R.put("a.md", enc("x"));
+    await R.put("b.md", enc("y"));
+    const broken = { "a.md": { localHash: "古い", remoteVersion: "古い" }, "b.md": { localHash: "古い", remoteVersion: "古い" } };
+
+    const { report, state } = await clone(broken);
+
+    expect(report.conflicts).toEqual([]);
+    expect(report.localOnly).toEqual([]);
+    expect(Object.keys(state).sort()).toEqual(["a.md", "b.md"]);
+  });
+});
+
+describe("疑わしい状態では、アップロードだけを止める", () => {
+  it("ベースラインが無く両側に中身があれば止まる（clone を通っていない）", async () => {
+    await L.write("a.md", enc("私の"));
+    await R.put("b.md", enc("チームの"));
+
+    const { report } = await sync();
+
+    expect(report.blocked).toContain("no-baseline");
+    expect(report.heldUploads).toContain("a.md");
+    expect(R.store.has("a.md")).toBe(false);
+  });
+
+  it("止まっていてもダウンロードは進む", async () => {
+    await L.write("a.md", enc("私の"));
+    await R.put("b.md", enc("チームの"));
+
+    const { report } = await sync();
+
+    expect(report.downloaded).toContain("b.md");
+    expect(L.text("b.md")).toBe("チームの");
+  });
+
+  it("ローカルが空でベースラインが残っていれば止まる（Vault を消した直後）", async () => {
+    for (let i = 0; i < 3; i++) await L.write(`n${i}.md`, enc(String(i)));
+    const s1 = await baseline();
+    for (let i = 0; i < 3; i++) await L.delete(`n${i}.md`);
+
+    const { report } = await sync(s1);
+
+    expect(report.blocked).toContain("vault-empty");
+    expect(report.deferredDeletes.sort()).toEqual(["n0.md", "n1.md", "n2.md"]);
+    expect(R.store.size).toBe(3); // リモートは無傷
+  });
+
+  it("承認したパスだけは、止まっていても削除する", async () => {
+    for (let i = 0; i < 3; i++) await L.write(`n${i}.md`, enc(String(i)));
+    const s1 = await baseline();
+    for (let i = 0; i < 3; i++) await L.delete(`n${i}.md`);
+
+    const { report, state } = await sync(s1, { approvedDeletes: new Set(["n1.md"]) });
+
+    expect(report.deletedRemote).toEqual(["n1.md"]);
+    expect(R.store.has("n1.md")).toBe(false);
+    expect(R.store.has("n0.md")).toBe(true);
+    expect(state["n1.md"]).toBeUndefined();
+    expect(state["n0.md"]).toBeDefined(); // 承認していない分は持ち越す
+  });
+
+  it("clone の後は普通に同期できる", async () => {
+    await R.put("a.md", enc("チームの"));
+    await L.write("私のメモ.md", enc("私の"));
+    const { state } = await clone();
+
+    const { report } = await sync(state);
+
+    expect(report.blocked).toEqual([]);
+    expect(report.uploaded).toContain("私のメモ.md");
+  });
+});
+
+describe("plan — 適用せずに数える", () => {
+  it("アップロード、ダウンロード、ローカル固有を数える", async () => {
+    await L.write("私の.md", enc("x"));
+    await R.put("チームの.md", enc("y"));
+
+    const plan = await engine().plan({});
+
+    expect(plan.upload).toEqual(["私の.md"]);
+    expect(plan.download).toEqual(["チームの.md"]);
+    expect(plan.localOnly).toEqual(["私の.md"]);
+    expect(plan.blocked).toEqual(["no-baseline"]);
+  });
+
+  it("数えるだけで、何も動かさない", async () => {
+    await L.write("a.md", enc("x"));
+    await engine().plan({});
+
+    expect(R.store.size).toBe(0);
+  });
+
+  it("問題が無ければ blocked は空", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    await L.write("a.md", enc("x2"));
+
+    const plan = await engine().plan(s1);
+
+    expect(plan.blocked).toEqual([]);
+    expect(plan.upload).toEqual(["a.md"]);
   });
 });
 

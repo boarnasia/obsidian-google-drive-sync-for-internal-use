@@ -85,6 +85,39 @@ export const en = {
   pollUnit: "minutes",
   pollInvalid: "Enter a whole number of minutes, 1 or more.",
 
+  // ------------------------------------------------------------ 同期管理パネル
+  panelTitle: "Sync manager",
+  panelOpen: "Open the sync manager",
+  panelNeedsConnection: "Not connected. Connect to Google Drive in the plugin settings first.",
+  panelNeedsTarget: "No sync target yet. Paste the folder URL in the plugin settings.",
+  panelChecking: "Checking what has changed…",
+  panelReady: "✓ Ready to sync.",
+  panelBlocked: "⚠ Uploads are on hold.",
+  reasonNoBaseline:
+    "This vault has not been cloned yet, and both sides have files. Run Clone to bring the remote here first.",
+  reasonVaultEmpty:
+    "The vault is empty but the baseline still lists files. Run Clone to bring them back, or approve the deletions below.",
+  reasonDeleteGuard: "This sync would delete more files than the safety limit allows.",
+  panelActions: "Actions",
+  btnClone: "Clone",
+  btnRefresh: "Refresh",
+  panelLastSynced: (rel: string): string => `Last synced: ${rel}`,
+  panelCheckedAt: (rel: string): string => `Checked: ${rel}`,
+  panelHeldDeletes: (n: number): string => `Deletions on hold (${n})`,
+  panelHeldDeletesDesc:
+    "Nothing is deleted until you approve it. Approved files go to the trash: Drive empties its trash after 30 days, and an admin can still restore them for 25 days after that.",
+  btnSelectAll: "Select all",
+  btnApproveDeletes: (n: number): string => `Delete ${n} selected`,
+  panelChanges: "Changes",
+  panelUpload: "Upload",
+  panelDownload: "Download",
+  panelConflict: "Conflict",
+  panelLocalOnly: "Local only",
+  panelNoChanges: "Nothing to sync.",
+  panelMore: (n: number): string => `…and ${n} more`,
+  cloneDone: (down: number, conflicts: number, localOnly: number): string =>
+    `clone done — ↓${down}, ${conflicts} conflict copy/copies, ${localOnly} local-only file(s)`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient: "No OAuth client configured — enter the client ID and secret in settings, then connect.",
   errNoRefreshToken: "No refresh token returned — revoke the app at myaccount.google.com and connect again.",

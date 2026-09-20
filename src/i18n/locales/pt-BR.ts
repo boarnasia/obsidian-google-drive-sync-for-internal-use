@@ -85,6 +85,39 @@ export const ptBR: Strings = {
   pollUnit: "minutos",
   pollInvalid: "Informe um número inteiro de minutos, 1 ou mais.",
 
+  // ------------------------------------------------------------ 同期管理パネル
+  panelTitle: "Gerenciador de sincronização",
+  panelOpen: "Abrir o gerenciador de sincronização",
+  panelNeedsConnection: "Sem conexão. Conecte-se ao Google Drive nas configurações do plugin.",
+  panelNeedsTarget: "Ainda não há destino de sincronização. Cole a URL da pasta nas configurações do plugin.",
+  panelChecking: "Verificando o que mudou…",
+  panelReady: "✓ Pronto para sincronizar.",
+  panelBlocked: "⚠ Os envios estão pausados.",
+  reasonNoBaseline:
+    "Este cofre ainda não foi clonado e há arquivos dos dois lados. Execute o Clone para trazer o remoto primeiro.",
+  reasonVaultEmpty:
+    "O cofre está vazio, mas a referência ainda lista arquivos. Execute o Clone para trazê-los de volta ou aprove as exclusões abaixo.",
+  reasonDeleteGuard: "Esta sincronização excluiria mais arquivos do que o limite de segurança permite.",
+  panelActions: "Ações",
+  btnClone: "Clone",
+  btnRefresh: "Atualizar",
+  panelLastSynced: (rel) => `Última sincronização: ${rel}`,
+  panelCheckedAt: (rel) => `Verificado: ${rel}`,
+  panelHeldDeletes: (n) => `Exclusões pendentes (${n})`,
+  panelHeldDeletesDesc:
+    "Nada é excluído até você aprovar. Os arquivos aprovados vão para a lixeira: o Drive a esvazia depois de 30 dias e, mesmo depois, um administrador ainda pode restaurá-los por 25 dias.",
+  btnSelectAll: "Selecionar tudo",
+  btnApproveDeletes: (n) => `Excluir ${n} selecionados`,
+  panelChanges: "Mudanças",
+  panelUpload: "Envio",
+  panelDownload: "Download",
+  panelConflict: "Conflito",
+  panelLocalOnly: "Somente local",
+  panelNoChanges: "Nada para sincronizar.",
+  panelMore: (n) => `…e mais ${n}`,
+  cloneDone: (down, conflicts, localOnly) =>
+    `clone concluído — ↓${down}, ${conflicts} cópia(s) de conflito, ${localOnly} arquivo(s) somente local`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "Nenhum cliente OAuth configurado — informe o ID e a chave secreta do cliente nas configurações e depois conecte.",
