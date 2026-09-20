@@ -94,13 +94,14 @@ export const ptBR: Strings = {
   panelReady: "✓ Pronto para sincronizar.",
   panelBlocked: "⚠ Os envios estão pausados.",
   reasonNoBaseline:
-    "Este cofre ainda não foi clonado e há arquivos dos dois lados. Execute o Clone para trazer o remoto primeiro.",
+    "Este cofre ainda não foi trazido do Drive e há arquivos dos dois lados. Execute “Trazer do Drive” primeiro.",
   reasonVaultEmpty:
-    "O cofre está vazio, mas a referência ainda lista arquivos. Execute o Clone para trazê-los de volta ou aprove as exclusões abaixo.",
-  reasonDeleteGuard: "Esta sincronização excluiria mais arquivos do que o limite de segurança permite.",
+    "O remoto e o local diferem muito: muitos arquivos que o Drive ainda lista foram excluídos localmente. Exclua-os no Drive pela lista abaixo, ou execute “Trazer do Drive” para recuperá-los.",
+  reasonDeleteGuard:
+    "Esta sincronização excluiria mais arquivos do que o limite de segurança permite. Veja a lista abaixo ou execute “Trazer do Drive” para recuperar a cópia remota.",
   panelActions: "Ações",
-  btnClone: "Clone",
-  btnRefresh: "Atualizar",
+  btnClone: "Trazer do Drive",
+  btnRefresh: "Ver estado",
   panelLastSynced: (rel) => `Última sincronização: ${rel}`,
   panelCheckedAt: (rel) => `Verificado: ${rel}`,
   panelHeldDeletes: (n) => `Exclusões pendentes (${n})`,
@@ -128,7 +129,8 @@ export const ptBR: Strings = {
   errTargetEmpty: "Cole a URL da pasta (ou o ID dela).",
   errTargetNotFound: "A pasta não foi encontrada, ou esta conta não consegue vê-la.",
   errTargetForbidden: "Esta conta não tem permissão para abrir essa pasta.",
-  errTargetNotFolder: "Esse link aponta para um arquivo, não para uma pasta. Abra a própria pasta e copie o endereço dela.",
+  errTargetNotFolder:
+    "Esse link aponta para um arquivo, não para uma pasta. Abra a própria pasta e copie o endereço dela.",
   errEmptyPath: "caminho vazio",
   errOutsideMount: (path) => `recusado: caminho fora da pasta sincronizada: ${path}`,
   errLocalMissing: (path) => `o arquivo local não existe mais: ${path}`,

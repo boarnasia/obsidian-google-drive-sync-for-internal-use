@@ -93,13 +93,14 @@ export const de: Strings = {
   panelReady: "✓ Bereit zum Synchronisieren.",
   panelBlocked: "⚠ Uploads sind angehalten.",
   reasonNoBaseline:
-    "Dieser Tresor wurde noch nicht geklont, und auf beiden Seiten liegen Dateien. Führe zuerst Clone aus, um die entfernte Seite zu holen.",
+    "Dieser Tresor wurde noch nicht von Drive geholt, und auf beiden Seiten liegen Dateien. Führe zuerst „Von Drive holen“ aus.",
   reasonVaultEmpty:
-    "Der Tresor ist leer, aber die Referenz führt noch Dateien. Hole sie mit Clone zurück oder bestätige die Löschungen unten.",
-  reasonDeleteGuard: "Diese Synchronisierung würde mehr Dateien löschen, als das Sicherheitslimit erlaubt.",
+    "Entfernt und lokal unterscheiden sich stark: Viele Dateien, die Drive noch führt, fehlen lokal. Lösche sie unten auf Drive, oder hole sie mit „Von Drive holen“ zurück.",
+  reasonDeleteGuard:
+    "Diese Synchronisierung würde mehr Dateien löschen, als das Sicherheitslimit erlaubt. Sieh dir die Liste unten an oder hole die entfernte Kopie mit „Von Drive holen“ zurück.",
   panelActions: "Aktionen",
-  btnClone: "Clone",
-  btnRefresh: "Aktualisieren",
+  btnClone: "Von Drive holen",
+  btnRefresh: "Status prüfen",
   panelLastSynced: (rel) => `Zuletzt synchronisiert: ${rel}`,
   panelCheckedAt: (rel) => `Geprüft: ${rel}`,
   panelHeldDeletes: (n) => `Zurückgehaltene Löschungen (${n})`,

@@ -51,7 +51,8 @@ export const ko: Strings = {
   disconnectedNotice: "Google 드라이브 연결이 해제되었습니다.",
 
   targetUrlName: "폴더 URL",
-  targetUrlDesc: "브라우저에서 공유 드라이브 폴더를 열고 주소를 여기에 붙여 넣으세요. 팀원 모두가 같은 폴더를 사용해야 합니다.",
+  targetUrlDesc:
+    "브라우저에서 공유 드라이브 폴더를 열고 주소를 여기에 붙여 넣으세요. 팀원 모두가 같은 폴더를 사용해야 합니다.",
   targetUrlPlaceholder: "https://drive.google.com/drive/folders/…",
   myDriveName: "내 드라이브",
   targetStatusName: "동기화 대상",
@@ -90,12 +91,15 @@ export const ko: Strings = {
   panelChecking: "변경 사항을 확인하는 중…",
   panelReady: "✓ 동기화할 수 있습니다.",
   panelBlocked: "⚠ 업로드를 중단했습니다.",
-  reasonNoBaseline: "이 보관소는 아직 clone하지 않았고, 양쪽 모두에 파일이 있습니다. 먼저 clone으로 원격을 가져오세요.",
-  reasonVaultEmpty: "보관소가 비었지만 기준 정보에는 파일이 남아 있습니다. clone으로 되돌리거나 아래 삭제를 승인하세요.",
-  reasonDeleteGuard: "이번 동기화는 안전 한도를 넘는 수의 파일을 삭제하려고 합니다.",
+  reasonNoBaseline:
+    '이 보관소는 아직 Drive에서 가져오지 않았고, 양쪽 모두에 파일이 있습니다. 먼저 "Drive에서 가져오기"를 실행하세요.',
+  reasonVaultEmpty:
+    '원격과 로컬의 차이가 큽니다. Drive에는 남아 있는 많은 파일이 로컬에서 삭제되었습니다. 아래에서 Drive의 파일을 삭제하거나, "Drive에서 가져오기"로 파일을 되돌리세요.',
+  reasonDeleteGuard:
+    '이번 동기화는 안전 한도를 넘는 수의 파일을 삭제하려고 합니다. 아래 목록을 확인하거나, "Drive에서 가져오기"로 원격 내용을 되돌리세요.',
   panelActions: "작업",
-  btnClone: "clone",
-  btnRefresh: "새로 고침",
+  btnClone: "Drive에서 가져오기",
+  btnRefresh: "상태 확인",
   panelLastSynced: (rel) => `마지막 동기화: ${rel}`,
   panelCheckedAt: (rel) => `확인: ${rel}`,
   panelHeldDeletes: (n) => `보류된 삭제 (${n}건)`,
@@ -110,10 +114,12 @@ export const ko: Strings = {
   panelLocalOnly: "로컬 전용",
   panelNoChanges: "동기화할 항목이 없습니다.",
   panelMore: (n) => `…외 ${n}건`,
-  cloneDone: (down, conflicts, localOnly) => `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
+  cloneDone: (down, conflicts, localOnly) =>
+    `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
 
   // ---------------------------------------------------------- 利用者に出る失敗
-  errNoOauthClient: "OAuth 클라이언트가 설정되지 않았습니다. 설정에서 클라이언트 ID와 보안 비밀을 입력한 뒤 연결하세요.",
+  errNoOauthClient:
+    "OAuth 클라이언트가 설정되지 않았습니다. 설정에서 클라이언트 ID와 보안 비밀을 입력한 뒤 연결하세요.",
   errNoRefreshToken:
     "갱신 토큰이 반환되지 않았습니다. myaccount.google.com에서 이 앱의 액세스 권한을 취소한 뒤 다시 연결하세요.",
   errNotConnected: "먼저 Google 드라이브에 연결하세요.",
