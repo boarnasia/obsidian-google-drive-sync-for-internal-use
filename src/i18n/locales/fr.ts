@@ -84,6 +84,39 @@ export const fr: Strings = {
   pollUnit: "min",
   pollInvalid: "Saisissez un nombre entier de minutes, 1 ou plus.",
 
+  // ------------------------------------------------------------ 同期管理パネル
+  panelTitle: "Gestion de la synchronisation",
+  panelOpen: "Ouvrir la gestion de la synchronisation",
+  panelNeedsConnection: "Non connecté. Connectez-vous à Google Drive dans les paramètres du plugin.",
+  panelNeedsTarget: "Aucune cible de synchronisation. Collez l’URL du dossier dans les paramètres du plugin.",
+  panelChecking: "Vérification des changements…",
+  panelReady: "✓ Prêt à synchroniser.",
+  panelBlocked: "⚠ Les envois sont suspendus.",
+  reasonNoBaseline:
+    "Ce coffre n’a pas encore été cloné et les deux côtés contiennent des fichiers. Lancez Clone pour récupérer d’abord le distant.",
+  reasonVaultEmpty:
+    "Le coffre est vide mais la référence liste encore des fichiers. Lancez Clone pour les récupérer, ou approuvez les suppressions ci-dessous.",
+  reasonDeleteGuard: "Cette synchronisation supprimerait plus de fichiers que la limite de sécurité ne l’autorise.",
+  panelActions: "Actions",
+  btnClone: "Clone",
+  btnRefresh: "Actualiser",
+  panelLastSynced: (rel) => `Dernière synchronisation : ${rel}`,
+  panelCheckedAt: (rel) => `Vérifié : ${rel}`,
+  panelHeldDeletes: (n) => `Suppressions en attente (${n})`,
+  panelHeldDeletesDesc:
+    "Rien n’est supprimé tant que vous ne l’approuvez pas. Les fichiers approuvés vont à la corbeille : Drive la vide au bout de 30 jours, puis un administrateur peut encore les restaurer pendant 25 jours.",
+  btnSelectAll: "Tout sélectionner",
+  btnApproveDeletes: (n) => `Supprimer les ${n} sélectionnés`,
+  panelChanges: "Changements",
+  panelUpload: "Envoi",
+  panelDownload: "Téléchargement",
+  panelConflict: "Conflit",
+  panelLocalOnly: "Local uniquement",
+  panelNoChanges: "Rien à synchroniser.",
+  panelMore: (n) => `…et ${n} de plus`,
+  cloneDone: (down, conflicts, localOnly) =>
+    `clone terminé — ↓${down}, ${conflicts} copie(s) de conflit, ${localOnly} fichier(s) local uniquement`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "Aucun client OAuth configuré — saisissez l’ID client et le secret dans les paramètres, puis connectez-vous.",

@@ -27,6 +27,32 @@ export interface FileState {
 
 export type SyncStateData = Record<string, FileState>;
 
+/**
+ * ベースラインが現実と合っていない疑いの理由。1 つでもあればアップロードを止める
+ * （ダウンロードは続ける）。抜けるには clone でやり直すか、保留削除を承認する（ADR-0005）。
+ */
+export type BlockReason =
+  /** ベースラインが無いのに、ローカルとリモートの両方に中身がある。 */
+  | "no-baseline"
+  /** ローカルが空で、ベースラインが空でない。Vault を消した直後がこれ。 */
+  | "vault-empty"
+  /** 消すことになる数が安全上限を超えた。 */
+  | "delete-guard";
+
+/** 適用せずに「この同期が何をするか」を数えたもの。サイドバーの表示にも使う。 */
+export interface SyncPlan {
+  upload: string[];
+  download: string[];
+  conflict: string[];
+  deleteLocal: string[];
+  deleteRemote: string[];
+  /** リモートに無いローカルのファイル。分類の対象（ADR-0006）。 */
+  localOnly: string[];
+  blocked: BlockReason[];
+  /** 削除の安全上限。保留された削除を見せるときに使う。 */
+  deleteLimit: number;
+}
+
 /** 1 回の同期が何をしたか。通知とテストのために使う。 */
 export interface SyncReport {
   uploaded: string[];
@@ -40,6 +66,12 @@ export interface SyncReport {
   deferredDeletes: string[];
   conflicts: { path: string; conflictPath: string }[];
   errors: { path: string; error: string }[];
+  /** アップロードを止めた理由。空なら止めていない。 */
+  blocked: BlockReason[];
+  /** 止まっていたためアップロードしなかったパス。 */
+  heldUploads: string[];
+  /** リモートに無いローカルのファイル（clone の後に分類する）。 */
+  localOnly: string[];
 }
 
 export function emptyReport(): SyncReport {
@@ -51,5 +83,8 @@ export function emptyReport(): SyncReport {
     deferredDeletes: [],
     conflicts: [],
     errors: [],
+    blocked: [],
+    heldUploads: [],
+    localOnly: [],
   };
 }

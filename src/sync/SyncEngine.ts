@@ -2,7 +2,7 @@ import { PutResult, RemoteObject, RemoteProvider } from "../providers/RemoteProv
 import { conflictPath, safeVaultPath } from "../util/paths";
 import { sha256Hex } from "../util/hash";
 import { LocalStore } from "./LocalStore";
-import { FileState, LocalFile, LocalStamp, SyncReport, SyncStateData, emptyReport } from "./types";
+import { FileState, LocalFile, LocalStamp, SyncPlan, SyncReport, SyncStateData, emptyReport } from "./types";
 import { runPool } from "../util/pool";
 
 /**
@@ -32,7 +32,11 @@ export const DEFAULT_CONCURRENCY = 8;
  *
  * 削除はベースライン経由で伝播する（ベースラインにあって片側から消えていれば、
  * そこで削除されたということ）。
+ *
+ * ベースラインが現実と合っていない疑いがあるときは、アップロードだけを止める。
+ * 止まったまま抜けられなくならないよう、clone と保留削除の承認を用意する（ADR-0005）。
  */
+
 /** ベースラインから、前回ハッシュしたときの姿を取り出す。姿が無い項目は読み直す。 */
 function stampsOf(prev: SyncStateData): Map<string, LocalStamp> {
   const out = new Map<string, LocalStamp>();
@@ -49,6 +53,12 @@ function stateOf(L: LocalFile, remoteVersion: string): FileState {
   return { localHash: L.hash, remoteVersion, localMtime: L.mtime, localSize: L.size };
 }
 
+/** 両側の現在の姿。plan と sync が同じ読み取りを共有する。 */
+interface Sides {
+  localMap: Map<string, LocalFile>;
+  remoteMap: Map<string, RemoteObject>;
+}
+
 export class SyncEngine {
   constructor(
     private readonly local: LocalStore,
@@ -58,26 +68,154 @@ export class SyncEngine {
     private readonly concurrency: number = DEFAULT_CONCURRENCY
   ) {}
 
-  async sync(prev: SyncStateData): Promise<{ state: SyncStateData; report: SyncReport }> {
+  /** 両側を読む。ここだけがネットワークとファイルを触る入口。 */
+  private async snapshot(prev: SyncStateData): Promise<Sides> {
     const [localList, remoteList] = await Promise.all([this.local.list(stampsOf(prev)), this.remote.list()]);
-    const localMap = new Map<string, LocalFile>(localList.map((f) => [f.path, f]));
-    const remoteMap = new Map<string, RemoteObject>(remoteList.map((o) => [o.path, o]));
+    return {
+      localMap: new Map(localList.map((f) => [f.path, f])),
+      remoteMap: new Map(remoteList.map((o) => [o.path, o])),
+    };
+  }
+
+  /**
+   * 適用せずに、この同期が何をするかを数える。サイドバーの表示と、同期を
+   * 止めるかどうかの判断が同じ計算から出るようにしている。
+   */
+  async plan(prev: SyncStateData): Promise<SyncPlan> {
+    return this.planFrom(prev, await this.snapshot(prev));
+  }
+
+  private planFrom(prev: SyncStateData, { localMap, remoteMap }: Sides): SyncPlan {
+    const plan: SyncPlan = {
+      upload: [],
+      download: [],
+      conflict: [],
+      deleteLocal: [],
+      deleteRemote: [],
+      localOnly: [],
+      blocked: [],
+      deleteLimit: this.deleteGuard(Object.keys(prev).length),
+    };
+
+    for (const path of new Set([...localMap.keys(), ...remoteMap.keys(), ...Object.keys(prev)])) {
+      const L = localMap.get(path);
+      const R = remoteMap.get(path);
+      const S = prev[path];
+      if (L && !R) plan.localOnly.push(path);
+
+      const localChanged = L ? !S || L.hash !== S.localHash : !!S;
+      const remoteChanged = R ? !S || R.version !== S.remoteVersion : !!S;
+      if (!localChanged && !remoteChanged) continue;
+
+      if (L && R && localChanged && remoteChanged) plan.conflict.push(path);
+      else if (L && localChanged && !remoteChanged) plan.upload.push(path);
+      else if (R && !localChanged && remoteChanged) plan.download.push(path);
+      else if (!L && S && R) plan.deleteRemote.push(path);
+      else if (!R && S && L) plan.deleteLocal.push(path);
+      else if (L) plan.upload.push(path);
+      else if (R) plan.download.push(path);
+    }
+
+    const { localDeletes, remoteDeletes } = this.planDeletions(prev, localMap, remoteMap);
+    const tracked = Object.keys(prev).length;
+    if (tracked === 0 && localMap.size > 0 && remoteMap.size > 0) plan.blocked.push("no-baseline");
+    if (tracked > 0 && localMap.size === 0) plan.blocked.push("vault-empty");
+    if (localDeletes > plan.deleteLimit || remoteDeletes > plan.deleteLimit) plan.blocked.push("delete-guard");
+    return plan;
+  }
+
+  /**
+   * 通常の同期。
+   *
+   * `approvedDeletes` は、保留された削除のうち利用者が承認したパス。安全上限を
+   * 超えていても、ここに挙がったものだけは実行する（ADR-0005）。
+   */
+  async sync(
+    prev: SyncStateData,
+    opts: { approvedDeletes?: ReadonlySet<string> } = {}
+  ): Promise<{ state: SyncStateData; report: SyncReport }> {
+    const sides = await this.snapshot(prev);
+    const { localMap, remoteMap } = sides;
+    const plan = this.planFrom(prev, sides);
+    const approved = opts.approvedDeletes ?? new Set<string>();
 
     const { deferLocal, deferRemote } = this.planDeletions(prev, localMap, remoteMap);
+    const holdUploads = plan.blocked.length > 0;
 
     const state: SyncStateData = { ...prev };
     const report = emptyReport();
+    report.blocked = plan.blocked;
+    report.localOnly = plan.localOnly;
 
     const paths = new Set<string>([...localMap.keys(), ...remoteMap.keys(), ...Object.keys(prev)]);
     // パスごとの判断は互いに独立している（触るのは自分の state[path] と report の配列だけ）。
     await runPool(paths, this.concurrency, async (path) => {
       try {
-        await this.reconcile(path, localMap.get(path), remoteMap.get(path), prev[path], state, report, deferLocal, deferRemote);
+        await this.reconcile(path, localMap.get(path), remoteMap.get(path), prev[path], state, report, {
+          deferLocal: deferLocal && !approved.has(path),
+          deferRemote: deferRemote && !approved.has(path),
+          holdUploads: holdUploads && !approved.has(path),
+        });
       } catch (e) {
         report.errors.push({ path, error: (e as Error).message });
       }
     });
     return { state, report };
+  }
+
+  /**
+   * リモートをローカルに再現する（非破壊）。初回接続も復旧もここを通る（ADR-0005）。
+   *
+   * ローカルにしか無いファイルは消さない。同名で内容が違うファイルは、ローカル版を
+   * 競合コピーに退避してからリモート版を置く。ベースラインはこの結果で作り直す。
+   */
+  async clone(prev: SyncStateData = {}): Promise<{ state: SyncStateData; report: SyncReport }> {
+    const { localMap, remoteMap } = await this.snapshot(prev);
+    const state: SyncStateData = {};
+    const report = emptyReport();
+    // 退避先が同じ秒に衝突しないよう、既存のパスと今回作った分を憶えておく。
+    const taken = new Set<string>(localMap.keys());
+
+    await runPool(remoteMap.keys(), this.concurrency, async (path) => {
+      try {
+        const L = localMap.get(path);
+        const R = remoteMap.get(path) as RemoteObject;
+        const data = await this.remote.get(path);
+        if (data === null) return; // 実行中に消えた。次の同期で整合する
+        const hash = await sha256Hex(data);
+
+        if (L && L.hash === hash) {
+          state[path] = stateOf(L, R.version); // 同じ内容。触らない
+          return;
+        }
+        if (L) {
+          const cp = this.freshConflictPath(path, taken);
+          await this.local.write(cp, await this.local.read(path));
+          report.conflicts.push({ path, conflictPath: cp });
+        }
+        await this.local.write(safeVaultPath(path), data);
+        state[path] = { localHash: hash, remoteVersion: R.version };
+        report.downloaded.push(path);
+      } catch (e) {
+        report.errors.push({ path, error: (e as Error).message });
+      }
+    });
+
+    // リモートに無いローカルのファイル。退避した競合コピーもここに入る。
+    report.localOnly = [...taken].filter((p) => !remoteMap.has(p)).sort();
+    return { state, report };
+  }
+
+  /** 同じ秒に複数のファイルを退避しても名前がぶつからないようにする。 */
+  private freshConflictPath(path: string, taken: Set<string>): string {
+    const base = safeVaultPath(conflictPath(path, this.stamp()));
+    let candidate = base;
+    for (let n = 2; taken.has(candidate); n++) {
+      const dot = base.lastIndexOf(".");
+      candidate = dot > 0 ? `${base.slice(0, dot)}-${n}${base.slice(dot)}` : `${base}-${n}`;
+    }
+    taken.add(candidate);
+    return candidate;
   }
 
   /**
@@ -96,7 +234,7 @@ export class SyncEngine {
     prev: SyncStateData,
     localMap: Map<string, LocalFile>,
     remoteMap: Map<string, RemoteObject>
-  ): { deferLocal: boolean; deferRemote: boolean } {
+  ): { deferLocal: boolean; deferRemote: boolean; localDeletes: number; remoteDeletes: number } {
     // ベースラインに無いパス = 今回現れたもの。移動先の候補。
     const newLocalHashes = new Set<string>();
     for (const [path, f] of localMap) if (!prev[path]) newLocalHashes.add(f.hash);
@@ -117,7 +255,7 @@ export class SyncEngine {
     }
 
     const limit = this.deleteGuard(Object.keys(prev).length);
-    return { deferLocal: localDeletes > limit, deferRemote: remoteDeletes > limit };
+    return { deferLocal: localDeletes > limit, deferRemote: remoteDeletes > limit, localDeletes, remoteDeletes };
   }
 
   private async reconcile(
@@ -127,9 +265,9 @@ export class SyncEngine {
     S: FileState | undefined,
     state: SyncStateData,
     report: SyncReport,
-    deferLocal: boolean,
-    deferRemote: boolean
+    guard: { deferLocal: boolean; deferRemote: boolean; holdUploads: boolean }
   ): Promise<void> {
+    const { deferLocal, deferRemote, holdUploads } = guard;
     const localChanged = L ? !S || L.hash !== S.localHash : !!S;
     const remoteChanged = R ? !S || R.version !== S.remoteVersion : !!S;
 
@@ -140,13 +278,20 @@ export class SyncEngine {
 
     // 両方が変更（新しい端末で既存 Vault を初めて同期した場合を含む）。
     if (L && R && localChanged && remoteChanged) {
+      if (holdUploads) {
+        // 競合の解決はどちらかを書く。止まっている間は触らない。
+        report.heldUploads.push(path);
+        return;
+      }
       await this.resolveConflict(path, L, R, state, report);
       return;
     }
 
     if (localChanged && !remoteChanged) {
-      if (L) await this.upload(path, L, state, report);
-      else if (deferRemote) report.deferredDeletes.push(path);
+      if (L) {
+        if (holdUploads) report.heldUploads.push(path);
+        else await this.upload(path, L, state, report);
+      } else if (deferRemote || holdUploads) report.deferredDeletes.push(path);
       else await this.deleteRemote(path, state, report);
       return;
     }
@@ -160,7 +305,8 @@ export class SyncEngine {
 
     // 削除 × 変更。生き残っている方の内容を守る。
     if (L && !R) {
-      await this.upload(path, L, state, report);
+      if (holdUploads) report.heldUploads.push(path);
+      else await this.upload(path, L, state, report);
       return;
     }
     if (!L && R) {

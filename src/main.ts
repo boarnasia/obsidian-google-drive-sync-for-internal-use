@@ -12,6 +12,7 @@ import { DEFAULT_SETTINGS, DriveTarget, Settings } from "./settings";
 import { SyncController } from "./SyncController";
 import { SyncReport } from "./sync/types";
 import { relativeTime } from "./util/time";
+import { SYNC_PANEL_VIEW, SyncPanelView } from "./obsidian/SyncPanelView";
 import { parseFolderId } from "./providers/drive/DriveTarget";
 import { LANGUAGE_NAMES, isLang, setLanguage, t } from "./i18n";
 
@@ -49,7 +50,10 @@ export default class GoogleDriveSyncPlugin extends Plugin {
 
     this.controller = new SyncController(this.app, this.settings, () => this.saveData(this.settings));
 
-    this.addRibbonIcon("refresh-cw", t.ribbonSyncNow, () => void this.runSync());
+    this.registerView(SYNC_PANEL_VIEW, (leaf) => new SyncPanelView(leaf, this));
+
+    this.addRibbonIcon("refresh-cw", t.panelOpen, () => void this.openPanel());
+    this.addCommand({ id: "open-sync-panel", name: t.panelOpen, callback: () => void this.openPanel() });
     this.addCommand({ id: "sync-now", name: t.cmdSyncNow, callback: () => void this.runSync() });
     this.addSettingTab(new SettingTab(this.app, this));
 
@@ -71,6 +75,23 @@ export default class GoogleDriveSyncPlugin extends Plugin {
 
   onunload(): void {
     this.stopPolling();
+  }
+
+  /** 同期管理を右サイドバーに出す。既に開いていればそれを前に出す。 */
+  async openPanel(): Promise<void> {
+    const existing = this.app.workspace.getLeavesOfType(SYNC_PANEL_VIEW);
+    const leaf = existing[0] ?? this.app.workspace.getRightLeaf(false);
+    if (!leaf) return;
+    if (!existing.length) await leaf.setViewState({ type: SYNC_PANEL_VIEW, active: true });
+    await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** 同期の後に、開いている同期管理の表示を数え直す。 */
+  private refreshPanels(): void {
+    for (const leaf of this.app.workspace.getLeavesOfType(SYNC_PANEL_VIEW)) {
+      const view = leaf.view;
+      if (view instanceof SyncPanelView) void view.refresh();
+    }
   }
 
   // ------------------------------------------------------ ローカル変更の検知
@@ -105,7 +126,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
    * @param opts.probeFirst ポーリング由来。リモートに変更が無ければ何もしない。
    * @param opts.quiet 何も起きなかったときに通知を出さない（自動同期用）。
    */
-  async runSync(opts: { probeFirst?: boolean; quiet?: boolean } = {}): Promise<void> {
+  async runSync(opts: { probeFirst?: boolean; quiet?: boolean; approvedDeletes?: ReadonlySet<string> } = {}): Promise<void> {
     if (this.syncing) {
       if (!opts.quiet) new Notice(t.notice(t.syncAlreadyRunning));
       return;
@@ -117,7 +138,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     try {
       const report = opts.probeFirst
         ? await this.controller.syncIfRemoteChanged()
-        : await this.controller.sync();
+        : await this.controller.sync({ approvedDeletes: opts.approvedDeletes });
       if (report) {
         this.rememberOwnWrites(report);
         if (!opts.quiet || this.didSomething(report)) new Notice(t.notice(this.summarise(report)));
@@ -126,6 +147,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
       if (!opts.quiet) new Notice(t.notice((e as Error).message));
     } finally {
       this.syncing = false;
+      this.refreshPanels();
       if (this.pendingLocal) {
         this.pendingLocal = false;
         void this.runSync({ quiet: true });

@@ -84,6 +84,39 @@ export const ja: Strings = {
   pollUnit: "分",
   pollInvalid: "1 以上の整数（分）を入力してください。",
 
+  // ------------------------------------------------------------ 同期管理パネル
+  panelTitle: "同期管理",
+  panelOpen: "同期管理を開く",
+  panelNeedsConnection: "未接続です。先にプラグインの設定から Google ドライブに接続してください。",
+  panelNeedsTarget: "同期先が未設定です。プラグインの設定でフォルダの URL を貼ってください。",
+  panelChecking: "変更を確認しています…",
+  panelReady: "✓ 同期できます。",
+  panelBlocked: "⚠ アップロードを停止中です。",
+  reasonNoBaseline:
+    "この Vault はまだ clone していません。両側にファイルがあるので、先に clone してリモートを取り込んでください。",
+  reasonVaultEmpty:
+    "Vault が空ですが、ベースラインにはファイルが残っています。clone で取り戻すか、下の削除を承認してください。",
+  reasonDeleteGuard: "この同期は、安全上限を超える数のファイルを削除しようとしています。",
+  panelActions: "操作",
+  btnClone: "clone",
+  btnRefresh: "更新",
+  panelLastSynced: (rel) => `最終同期: ${rel}`,
+  panelCheckedAt: (rel) => `確認: ${rel}`,
+  panelHeldDeletes: (n) => `保留中の削除（${n} 件）`,
+  panelHeldDeletesDesc:
+    "承認するまで何も削除しません。承認したファイルはゴミ箱に入ります。Drive のゴミ箱は 30 日で自動削除され、その後 25 日間は管理者なら復元できます。",
+  btnSelectAll: "すべて選択",
+  btnApproveDeletes: (n) => `選んだ ${n} 件を削除`,
+  panelChanges: "差分",
+  panelUpload: "アップロード",
+  panelDownload: "ダウンロード",
+  panelConflict: "競合",
+  panelLocalOnly: "ローカル固有",
+  panelNoChanges: "同期するものはありません。",
+  panelMore: (n) => `…ほか ${n} 件`,
+  cloneDone: (down, conflicts, localOnly) =>
+    `clone 完了 — ↓${down}、競合コピー ${conflicts} 件、ローカル固有 ${localOnly} 件`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "OAuth クライアントが設定されていません。設定画面でクライアント ID とシークレットを入力してから接続してください。",

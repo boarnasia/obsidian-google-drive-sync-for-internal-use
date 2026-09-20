@@ -82,6 +82,36 @@ export const ko: Strings = {
   pollUnit: "분",
   pollInvalid: "1 이상의 정수(분)를 입력하세요.",
 
+  // ------------------------------------------------------------ 同期管理パネル
+  panelTitle: "동기화 관리",
+  panelOpen: "동기화 관리 열기",
+  panelNeedsConnection: "연결되지 않았습니다. 먼저 플러그인 설정에서 Google 드라이브에 연결하세요.",
+  panelNeedsTarget: "동기화 대상이 없습니다. 플러그인 설정에서 폴더 URL을 붙여 넣으세요.",
+  panelChecking: "변경 사항을 확인하는 중…",
+  panelReady: "✓ 동기화할 수 있습니다.",
+  panelBlocked: "⚠ 업로드를 중단했습니다.",
+  reasonNoBaseline: "이 보관소는 아직 clone하지 않았고, 양쪽 모두에 파일이 있습니다. 먼저 clone으로 원격을 가져오세요.",
+  reasonVaultEmpty: "보관소가 비었지만 기준 정보에는 파일이 남아 있습니다. clone으로 되돌리거나 아래 삭제를 승인하세요.",
+  reasonDeleteGuard: "이번 동기화는 안전 한도를 넘는 수의 파일을 삭제하려고 합니다.",
+  panelActions: "작업",
+  btnClone: "clone",
+  btnRefresh: "새로 고침",
+  panelLastSynced: (rel) => `마지막 동기화: ${rel}`,
+  panelCheckedAt: (rel) => `확인: ${rel}`,
+  panelHeldDeletes: (n) => `보류된 삭제 (${n}건)`,
+  panelHeldDeletesDesc:
+    "승인하기 전에는 아무것도 삭제하지 않습니다. 승인한 파일은 휴지통으로 갑니다. Drive 휴지통은 30일 후 자동으로 비워지며, 그 뒤 25일간은 관리자가 복원할 수 있습니다.",
+  btnSelectAll: "모두 선택",
+  btnApproveDeletes: (n) => `선택한 ${n}건 삭제`,
+  panelChanges: "변경 사항",
+  panelUpload: "업로드",
+  panelDownload: "다운로드",
+  panelConflict: "충돌",
+  panelLocalOnly: "로컬 전용",
+  panelNoChanges: "동기화할 항목이 없습니다.",
+  panelMore: (n) => `…외 ${n}건`,
+  cloneDone: (down, conflicts, localOnly) => `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient: "OAuth 클라이언트가 설정되지 않았습니다. 설정에서 클라이언트 ID와 보안 비밀을 입력한 뒤 연결하세요.",
   errNoRefreshToken:
