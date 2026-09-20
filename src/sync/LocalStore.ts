@@ -1,4 +1,4 @@
-import { LocalFile } from "./types";
+import { LocalFile, LocalStamp } from "./types";
 
 /**
  * The local side of a sync (a vault, or a chosen subfolder). The Obsidian
@@ -6,8 +6,14 @@ import { LocalFile } from "./types";
  * Implementations apply `normalizePath()` and stay within the sync scope.
  */
 export interface LocalStore {
-  /** All files in scope, with content hashes. Excludes the plugin's own config. */
-  list(): Promise<LocalFile[]>;
+  /**
+   * All files in scope, with content hashes. Excludes the plugin's own config.
+   *
+   * `known` carries the stamp (hash + mtime + size) of the last time each path was
+   * hashed. A file whose mtime and size are unchanged keeps that hash and is not
+   * read — otherwise every sync would read the whole vault to learn nothing.
+   */
+  list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]>;
   read(path: string): Promise<ArrayBuffer>;
   write(path: string, data: ArrayBuffer): Promise<void>;
   delete(path: string): Promise<void>;

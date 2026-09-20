@@ -4,7 +4,7 @@
  */
 import { PutResult, RemoteObject, RemoteProvider } from "../../src/providers/RemoteProvider";
 import { LocalStore } from "../../src/sync/LocalStore";
-import { LocalFile } from "../../src/sync/types";
+import { LocalFile, LocalStamp } from "../../src/sync/types";
 import { sha256Hex } from "../../src/util/hash";
 
 export const enc = (s: string): ArrayBuffer => new TextEncoder().encode(s).buffer as ArrayBuffer;
@@ -66,14 +66,21 @@ export class FakeLocal implements LocalStore {
   store = new Map<string, ArrayBuffer>();
   private mt = new Map<string, number>();
   private clock = 0;
+  /** ハッシュを取り直したパス。キャッシュが効いているかをテストが見る。 */
+  hashedPaths: string[] = [];
 
-  async list(): Promise<LocalFile[]> {
+  async list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]> {
     return Promise.all(
-      [...this.store.entries()].map(async ([path, data]) => ({
-        path,
-        hash: await sha256Hex(data),
-        mtime: this.mt.get(path) ?? 0,
-      }))
+      [...this.store.entries()].map(async ([path, data]) => {
+        const mtime = this.mt.get(path) ?? 0;
+        const size = data.byteLength;
+        const cached = known?.get(path);
+        if (cached && cached.mtime === mtime && cached.size === size) {
+          return { path, hash: cached.hash, mtime, size };
+        }
+        this.hashedPaths.push(path);
+        return { path, hash: await sha256Hex(data), mtime, size };
+      })
     );
   }
   async read(path: string): Promise<ArrayBuffer> {

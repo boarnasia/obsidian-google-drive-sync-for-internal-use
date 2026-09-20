@@ -102,6 +102,18 @@ export class FakeDrive {
     return out;
   }
 
+  /** 他の誰かが完全に消した状態を作る（ID が無効になる）。 */
+  hardDelete(path: string): void {
+    for (const [id, e] of this.entries) if (this.pathOf(e) === path) this.entries.delete(id);
+  }
+
+  /** そのパスにあるフォルダの数。並列書き込みで二重に作っていないかを見る。 */
+  folderCount(path: string): number {
+    return [...this.entries.values()].filter(
+      (e) => e.mimeType === FOLDER_MIME && !e.trashed && this.pathOf(e) === path
+    ).length;
+  }
+
   trashedPaths(): string[] {
     return [...this.entries.values()].filter((e) => e.trashed).map((e) => e.name);
   }
@@ -127,8 +139,12 @@ export class FakeDrive {
 
   // ---------------------------------------------------------------- 通信の口
 
+  /** 1 リクエストあたりの遅延（ms）。往復が直列か並列かを測るために使う。 */
+  delayMs = 0;
+
   readonly http: HttpSend = async (method, url, headers, body) => {
     this.requests.push({ method, url, headers, body });
+    if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
     const u = new URL(url);
 
     if (method === "GET" && u.pathname.endsWith("/files") && u.searchParams.has("q")) {
