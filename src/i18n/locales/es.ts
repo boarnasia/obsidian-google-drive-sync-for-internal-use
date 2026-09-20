@@ -93,13 +93,14 @@ export const es: Strings = {
   panelReady: "✓ Listo para sincronizar.",
   panelBlocked: "⚠ Las subidas están en pausa.",
   reasonNoBaseline:
-    "Esta bóveda todavía no se ha clonado y hay archivos en ambos lados. Ejecuta Clone para traer primero lo remoto.",
+    "Esta bóveda todavía no se ha traído desde Drive y hay archivos en ambos lados. Ejecuta «Traer desde Drive» primero.",
   reasonVaultEmpty:
-    "La bóveda está vacía pero la referencia todavía lista archivos. Ejecuta Clone para recuperarlos o aprueba las eliminaciones de abajo.",
-  reasonDeleteGuard: "Esta sincronización eliminaría más archivos de los que permite el límite de seguridad.",
+    "Lo remoto y lo local difieren mucho: muchos archivos que Drive aún lista se han borrado en local. Bórralos en Drive desde la lista de abajo, o ejecuta «Traer desde Drive» para recuperarlos.",
+  reasonDeleteGuard:
+    "Esta sincronización eliminaría más archivos de los que permite el límite de seguridad. Revisa la lista de abajo o ejecuta «Traer desde Drive» para recuperar la copia remota.",
   panelActions: "Acciones",
-  btnClone: "Clone",
-  btnRefresh: "Actualizar",
+  btnClone: "Traer desde Drive",
+  btnRefresh: "Ver estado",
   panelLastSynced: (rel) => `Última sincronización: ${rel}`,
   panelCheckedAt: (rel) => `Comprobado: ${rel}`,
   panelHeldDeletes: (n) => `Eliminaciones en espera (${n})`,

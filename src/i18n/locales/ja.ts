@@ -79,8 +79,7 @@ export const ja: Strings = {
   autoSyncName: "自動同期",
   autoSyncDesc: "自分の変更はその都度アップロードし、他の人の変更は一定時間ごとに取りに行きます。",
   pollName: "他の人の変更を確認する間隔",
-  pollDesc:
-    "他の人の変更を確認しに行く間隔（分）。変更が無ければ 1 リクエストで終わるため、短くしても負荷は軽微です。",
+  pollDesc: "他の人の変更を確認しに行く間隔（分）。変更が無ければ 1 リクエストで終わるため、短くしても負荷は軽微です。",
   pollUnit: "分",
   pollInvalid: "1 以上の整数（分）を入力してください。",
 
@@ -93,13 +92,14 @@ export const ja: Strings = {
   panelReady: "✓ 同期できます。",
   panelBlocked: "⚠ アップロードを停止中です。",
   reasonNoBaseline:
-    "この Vault はまだ clone していません。両側にファイルがあるので、先に clone してリモートを取り込んでください。",
+    "この Vault はまだ Drive から取り込んでいません。両側にファイルがあるので、先に「Drive から取り込む」を実行してください。",
   reasonVaultEmpty:
-    "Vault が空ですが、ベースラインにはファイルが残っています。clone で取り戻すか、下の削除を承認してください。",
-  reasonDeleteGuard: "この同期は、安全上限を超える数のファイルを削除しようとしています。",
+    "リモートとローカルの間に大きな違いがあります。具体的にはローカルの多くのファイルが削除されています。これらのファイルをリモートから削除するか、「Drive から取り込む」を実行してリモートからファイルを取得してください。",
+  reasonDeleteGuard:
+    "この同期は、安全上限を超える数のファイルを削除しようとしています。下の一覧を確認するか、「Drive から取り込む」でリモートの内容を取り戻してください。",
   panelActions: "操作",
-  btnClone: "clone",
-  btnRefresh: "更新",
+  btnClone: "Drive から取り込む",
+  btnRefresh: "状態を確認",
   panelLastSynced: (rel) => `最終同期: ${rel}`,
   panelCheckedAt: (rel) => `確認: ${rel}`,
   panelHeldDeletes: (n) => `保留中の削除（${n} 件）`,

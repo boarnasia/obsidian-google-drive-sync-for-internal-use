@@ -9,17 +9,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { LANGUAGE_NAMES, LOCALES, Lang, Strings, codeOf, en, ja, langOf, setLanguage, t } from "../src/i18n";
 
-/**
- * 意図的にどの言語でも同じもの: 固有名詞、URL のプレースホルダ、記号だけのサマリ、
- * そして操作名の clone（用語として全言語で同じ綴りを使う。CONTEXT.md の用語集）。
- */
-const SHARED_BY_DESIGN = new Set<keyof Strings>([
-  "notice",
-  "syncSummary",
-  "relWords",
-  "targetUrlPlaceholder",
-  "btnClone",
-]);
+/** 意図的にどの言語でも同じもの: 固有名詞、URL のプレースホルダ、記号だけのサマリ。 */
+const SHARED_BY_DESIGN = new Set<keyof Strings>(["notice", "syncSummary", "relWords", "targetUrlPlaceholder"]);
 
 /** 英語と綴りが一致するのが正しい訳。これ以外の一致は訳し忘れとみなす。 */
 const SAME_AS_ENGLISH: Partial<Record<Lang, (keyof Strings)[]>> = {

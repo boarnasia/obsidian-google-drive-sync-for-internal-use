@@ -91,14 +91,14 @@ export const hi: Strings = {
   panelChecking: "बदलाव जाँचे जा रहे हैं…",
   panelReady: "✓ सिंक के लिए तैयार।",
   panelBlocked: "⚠ अपलोड रोक दिए गए हैं।",
-  reasonNoBaseline:
-    "इस वॉल्ट का clone अभी नहीं हुआ है और दोनों ओर फ़ाइलें हैं। पहले clone चलाकर रिमोट को यहाँ लाएँ।",
+  reasonNoBaseline: "इस वॉल्ट को अभी तक Drive से नहीं लाया गया है और दोनों ओर फ़ाइलें हैं। पहले “Drive से लाएँ” चलाएँ।",
   reasonVaultEmpty:
-    "वॉल्ट खाली है, पर आधार सूची में फ़ाइलें अब भी दर्ज हैं। clone से वापस लाएँ, या नीचे के हटाने को मंज़ूरी दें।",
-  reasonDeleteGuard: "यह सिंक सुरक्षा सीमा से अधिक फ़ाइलें हटाने वाला है।",
+    "रिमोट और स्थानीय में बड़ा अंतर है: Drive में दर्ज कई फ़ाइलें स्थानीय रूप से हटा दी गई हैं। नीचे से उन्हें Drive पर हटाएँ, या “Drive से लाएँ” चलाकर वापस लाएँ।",
+  reasonDeleteGuard:
+    "यह सिंक सुरक्षा सीमा से अधिक फ़ाइलें हटाने वाला है। नीचे की सूची देखें, या “Drive से लाएँ” चलाकर रिमोट की प्रति वापस लाएँ।",
   panelActions: "कार्य",
-  btnClone: "clone",
-  btnRefresh: "ताज़ा करें",
+  btnClone: "Drive से लाएँ",
+  btnRefresh: "स्थिति देखें",
   panelLastSynced: (rel) => `पिछला सिंक: ${rel}`,
   panelCheckedAt: (rel) => `जाँच: ${rel}`,
   panelHeldDeletes: (n) => `रोके गए हटाने (${n})`,

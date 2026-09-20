@@ -93,13 +93,14 @@ export const fr: Strings = {
   panelReady: "✓ Prêt à synchroniser.",
   panelBlocked: "⚠ Les envois sont suspendus.",
   reasonNoBaseline:
-    "Ce coffre n’a pas encore été cloné et les deux côtés contiennent des fichiers. Lancez Clone pour récupérer d’abord le distant.",
+    "Ce coffre n’a pas encore été récupéré depuis Drive et les deux côtés contiennent des fichiers. Lancez d’abord « Récupérer depuis Drive ».",
   reasonVaultEmpty:
-    "Le coffre est vide mais la référence liste encore des fichiers. Lancez Clone pour les récupérer, ou approuvez les suppressions ci-dessous.",
-  reasonDeleteGuard: "Cette synchronisation supprimerait plus de fichiers que la limite de sécurité ne l’autorise.",
+    "Le distant et le local diffèrent beaucoup : de nombreux fichiers encore listés sur Drive ont été supprimés en local. Supprimez-les sur Drive depuis la liste ci-dessous, ou lancez « Récupérer depuis Drive » pour les restaurer.",
+  reasonDeleteGuard:
+    "Cette synchronisation supprimerait plus de fichiers que la limite de sécurité ne l’autorise. Consultez la liste ci-dessous ou lancez « Récupérer depuis Drive » pour restaurer la copie distante.",
   panelActions: "Actions",
-  btnClone: "Clone",
-  btnRefresh: "Actualiser",
+  btnClone: "Récupérer depuis Drive",
+  btnRefresh: "Voir l’état",
   panelLastSynced: (rel) => `Dernière synchronisation : ${rel}`,
   panelCheckedAt: (rel) => `Vérifié : ${rel}`,
   panelHeldDeletes: (n) => `Suppressions en attente (${n})`,
@@ -127,7 +128,8 @@ export const fr: Strings = {
   errTargetEmpty: "Collez l’URL du dossier (ou son ID).",
   errTargetNotFound: "Dossier introuvable, ou ce compte ne peut pas le voir.",
   errTargetForbidden: "Ce compte n’est pas autorisé à ouvrir ce dossier.",
-  errTargetNotFolder: "Ce lien pointe vers un fichier, pas un dossier. Ouvrez le dossier lui-même et copiez son adresse.",
+  errTargetNotFolder:
+    "Ce lien pointe vers un fichier, pas un dossier. Ouvrez le dossier lui-même et copiez son adresse.",
   errEmptyPath: "chemin vide",
   errOutsideMount: (path) => `refus de toucher un chemin hors du dossier synchronisé : ${path}`,
   errLocalMissing: (path) => `le fichier local n’existe plus : ${path}`,

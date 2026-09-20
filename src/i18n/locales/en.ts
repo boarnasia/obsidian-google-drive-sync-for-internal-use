@@ -94,13 +94,14 @@ export const en = {
   panelReady: "✓ Ready to sync.",
   panelBlocked: "⚠ Uploads are on hold.",
   reasonNoBaseline:
-    "This vault has not been cloned yet, and both sides have files. Run Clone to bring the remote here first.",
+    'This vault has not been pulled from Drive yet, and both sides have files. Run "Pull from Drive" to bring the remote copy here first.',
   reasonVaultEmpty:
-    "The vault is empty but the baseline still lists files. Run Clone to bring them back, or approve the deletions below.",
-  reasonDeleteGuard: "This sync would delete more files than the safety limit allows.",
+    'The local vault and Drive differ a lot: many files that Drive still lists are gone locally. Either delete them on Drive below, or run "Pull from Drive" to bring them back.',
+  reasonDeleteGuard:
+    'This sync would delete more files than the safety limit allows. Review the list below, or run "Pull from Drive" to bring the remote copy back.',
   panelActions: "Actions",
-  btnClone: "Clone",
-  btnRefresh: "Refresh",
+  btnClone: "Pull from Drive",
+  btnRefresh: "Check status",
   panelLastSynced: (rel: string): string => `Last synced: ${rel}`,
   panelCheckedAt: (rel: string): string => `Checked: ${rel}`,
   panelHeldDeletes: (n: number): string => `Deletions on hold (${n})`,

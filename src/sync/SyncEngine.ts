@@ -19,6 +19,12 @@ export const defaultDeleteGuard = (trackedCount: number): number => Math.max(10,
 export const DEFAULT_CONCURRENCY = 8;
 
 /**
+ * clone のときだけ上げる同時実行数。取得しかしない（アップロードの帯域を食わない）ので、
+ * 往復待ちをもう少し重ねられる。646 件で 3 分かかった実測がこの値の理由である。
+ */
+export const CLONE_CONCURRENCY = 16;
+
+/**
  * ローカル・リモート・ベースラインの三方向マージによる双方向同期。
  *
  * 競合の方針は「決してデータを失わない」:
@@ -176,7 +182,7 @@ export class SyncEngine {
     // 退避先が同じ秒に衝突しないよう、既存のパスと今回作った分を憶えておく。
     const taken = new Set<string>(localMap.keys());
 
-    await runPool(remoteMap.keys(), this.concurrency, async (path) => {
+    await runPool(remoteMap.keys(), Math.max(this.concurrency, CLONE_CONCURRENCY), async (path) => {
       try {
         const L = localMap.get(path);
         const R = remoteMap.get(path) as RemoteObject;
