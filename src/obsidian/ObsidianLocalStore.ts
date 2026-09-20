@@ -134,6 +134,8 @@ export class ObsidianLocalStore implements LocalStore {
     if (!file) return;
     // 完全削除はしない。「リモートで消えた」という判断が誤っていても、必ず戻せる
     // ようにしておく。OS のゴミ箱を優先し、使えなければ Vault 内の .trash に落とす。
+    // FileManager.trashFile は利用者の「完全に削除」設定にも従ってしまうので使わない
+    // （lint の prefer-file-manager-trash-file 警告は承知の上で残す）。
     await this.app.vault.trash(file, true).catch(() => this.app.vault.trash(file, false));
   }
 }
