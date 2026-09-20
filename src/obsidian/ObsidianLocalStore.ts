@@ -1,6 +1,6 @@
 import { App, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
 import { LocalStore } from "../sync/LocalStore";
-import { LocalFile } from "../sync/types";
+import { LocalFile, LocalStamp } from "../sync/types";
 import { sha256Hex } from "../util/hash";
 import { safeVaultPath } from "../util/paths";
 import { t } from "../i18n";
@@ -80,13 +80,24 @@ export class ObsidianLocalStore implements LocalStore {
     return found;
   }
 
-  async list(): Promise<LocalFile[]> {
+  /**
+   * 同期範囲のファイル一覧。
+   *
+   * ハッシュは中身を読まないと出ないので、前回と mtime・size が同じファイルは
+   * `known` のハッシュをそのまま使う。これが無いと、何も変わっていない同期でも
+   * Vault 全体を読み直すことになる。
+   */
+  async list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]> {
     return Promise.all(
-      this.filesInMount().map(async (f) => ({
-        path: this.toMountRelative(f.path),
-        hash: await sha256Hex(await this.app.vault.readBinary(f)),
-        mtime: f.stat.mtime,
-      }))
+      this.filesInMount().map(async (f) => {
+        const path = this.toMountRelative(f.path);
+        const { mtime, size } = f.stat;
+        const cached = known?.get(path);
+        if (cached && cached.mtime === mtime && cached.size === size) {
+          return { path, hash: cached.hash, mtime, size };
+        }
+        return { path, hash: await sha256Hex(await this.app.vault.readBinary(f)), mtime, size };
+      })
     );
   }
 

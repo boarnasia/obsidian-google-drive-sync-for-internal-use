@@ -295,6 +295,77 @@ describe("削除の安全上限", () => {
   });
 });
 
+describe("速さのための約束", () => {
+  it("変わっていないファイルは二度とハッシュしない", async () => {
+    L.store.set("a.md", enc("x"));
+    L.store.set("b.md", enc("y"));
+    const s1 = await baseline();
+
+    L.hashedPaths = [];
+    await sync(s1);
+
+    expect(L.hashedPaths).toEqual([]);
+  });
+
+  it("中身が変わったファイルだけハッシュし直す", async () => {
+    L.store.set("a.md", enc("x"));
+    L.store.set("b.md", enc("y"));
+    const s1 = await baseline();
+
+    L.hashedPaths = [];
+    await L.write("b.md", enc("y2")); // mtime も size も変わる
+    await sync(s1);
+
+    expect(L.hashedPaths).toEqual(["b.md"]);
+  });
+
+  it("ベースラインに姿が無ければ読み直す（古い保存データ）", async () => {
+    L.store.set("a.md", enc("x"));
+    const s1 = await baseline();
+    delete s1["a.md"].localMtime;
+    delete s1["a.md"].localSize;
+
+    L.hashedPaths = [];
+    await sync(s1);
+
+    expect(L.hashedPaths).toEqual(["a.md"]);
+  });
+
+  it("ファイルを並列に処理する（1 件ずつ待たない）", async () => {
+    for (let i = 0; i < 16; i++) L.store.set(`n${i}.md`, enc(String(i)));
+
+    let inFlight = 0;
+    let peak = 0;
+    const put = R.put.bind(R);
+    R.put = async (path, data) => {
+      peak = Math.max(peak, ++inFlight);
+      await new Promise((r) => setTimeout(r, 1));
+      inFlight--;
+      return put(path, data);
+    };
+    await sync();
+
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  it("同時実行数の上限を超えない", async () => {
+    for (let i = 0; i < 16; i++) L.store.set(`n${i}.md`, enc(String(i)));
+
+    let inFlight = 0;
+    let peak = 0;
+    const put = R.put.bind(R);
+    R.put = async (path, data) => {
+      peak = Math.max(peak, ++inFlight);
+      await new Promise((r) => setTimeout(r, 1));
+      inFlight--;
+      return put(path, data);
+    };
+    await new SyncEngine(L, R, FIXED, defaultDeleteGuard, 3).sync({});
+
+    expect(peak).toBe(3);
+  });
+});
+
 describe("defaultDeleteGuard", () => {
   it("小さな Vault でも 10 件までは許す", () => {
     expect(defaultDeleteGuard(0)).toBe(10);

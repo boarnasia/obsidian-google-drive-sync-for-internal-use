@@ -2,13 +2,21 @@ import { PutResult, RemoteObject, RemoteProvider } from "../providers/RemoteProv
 import { conflictPath, safeVaultPath } from "../util/paths";
 import { sha256Hex } from "../util/hash";
 import { LocalStore } from "./LocalStore";
-import { FileState, LocalFile, SyncReport, SyncStateData, emptyReport } from "./types";
+import { FileState, LocalFile, LocalStamp, SyncReport, SyncStateData, emptyReport } from "./types";
+import { runPool } from "../util/pool";
 
 /**
  * 削除の安全上限。1 回の同期で片側あたり max(10, 追跡数の 20%) まで。
  * 超えた分は実行せずに持ち越す。
  */
 export const defaultDeleteGuard = (trackedCount: number): number => Math.max(10, Math.ceil(trackedCount * 0.2));
+
+/**
+ * 同時に進めるファイル数。1 件ずつ待つと所要時間は「ファイル数 × 往復時間」になり、
+ * 数百件で分の単位になる。上げすぎると Drive に 429 を返されるので、待ち時間だけが
+ * 重なって消える程度に留める。
+ */
+export const DEFAULT_CONCURRENCY = 8;
 
 /**
  * ローカル・リモート・ベースラインの三方向マージによる双方向同期。
@@ -25,16 +33,33 @@ export const defaultDeleteGuard = (trackedCount: number): number => Math.max(10,
  * 削除はベースライン経由で伝播する（ベースラインにあって片側から消えていれば、
  * そこで削除されたということ）。
  */
+/** ベースラインから、前回ハッシュしたときの姿を取り出す。姿が無い項目は読み直す。 */
+function stampsOf(prev: SyncStateData): Map<string, LocalStamp> {
+  const out = new Map<string, LocalStamp>();
+  for (const [path, s] of Object.entries(prev)) {
+    if (s.localMtime !== undefined && s.localSize !== undefined) {
+      out.set(path, { hash: s.localHash, mtime: s.localMtime, size: s.localSize });
+    }
+  }
+  return out;
+}
+
+/** ローカル側の姿もベースラインに残す。次の同期はこのファイルを読まずに済む。 */
+function stateOf(L: LocalFile, remoteVersion: string): FileState {
+  return { localHash: L.hash, remoteVersion, localMtime: L.mtime, localSize: L.size };
+}
+
 export class SyncEngine {
   constructor(
     private readonly local: LocalStore,
     private readonly remote: RemoteProvider,
     private readonly now: () => Date,
-    private readonly deleteGuard: (trackedCount: number) => number = defaultDeleteGuard
+    private readonly deleteGuard: (trackedCount: number) => number = defaultDeleteGuard,
+    private readonly concurrency: number = DEFAULT_CONCURRENCY
   ) {}
 
   async sync(prev: SyncStateData): Promise<{ state: SyncStateData; report: SyncReport }> {
-    const [localList, remoteList] = await Promise.all([this.local.list(), this.remote.list()]);
+    const [localList, remoteList] = await Promise.all([this.local.list(stampsOf(prev)), this.remote.list()]);
     const localMap = new Map<string, LocalFile>(localList.map((f) => [f.path, f]));
     const remoteMap = new Map<string, RemoteObject>(remoteList.map((o) => [o.path, o]));
 
@@ -44,13 +69,14 @@ export class SyncEngine {
     const report = emptyReport();
 
     const paths = new Set<string>([...localMap.keys(), ...remoteMap.keys(), ...Object.keys(prev)]);
-    for (const path of paths) {
+    // パスごとの判断は互いに独立している（触るのは自分の state[path] と report の配列だけ）。
+    await runPool(paths, this.concurrency, async (path) => {
       try {
         await this.reconcile(path, localMap.get(path), remoteMap.get(path), prev[path], state, report, deferLocal, deferRemote);
       } catch (e) {
         report.errors.push({ path, error: (e as Error).message });
       }
-    }
+    });
     return { state, report };
   }
 
@@ -168,7 +194,7 @@ export class SyncEngine {
     const remoteHash = await sha256Hex(remoteBytes);
 
     if (remoteHash === L.hash) {
-      state[path] = { localHash: L.hash, remoteVersion: R.version }; // 同一 → 採用、競合ではない
+      state[path] = stateOf(L, R.version); // 同一 → 採用、競合ではない
       return;
     }
 
@@ -191,7 +217,7 @@ export class SyncEngine {
   private async upload(path: string, L: LocalFile, state: SyncStateData, report: SyncReport): Promise<void> {
     const data = await this.local.read(path);
     const res: PutResult = await this.remote.put(path, data);
-    state[path] = { localHash: L.hash, remoteVersion: res.version };
+    state[path] = stateOf(L, res.version);
     report.uploaded.push(path);
   }
 

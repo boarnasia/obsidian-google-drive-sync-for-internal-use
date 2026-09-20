@@ -246,6 +246,53 @@ describe("削除", () => {
   });
 });
 
+describe("速さのための約束", () => {
+  it("列挙で分かった ID を使い、操作のたびに引き直さない", async () => {
+    drive.seed("notes/a.md", "v1");
+    const p = provider("");
+    await p.list();
+
+    const before = drive.urls().length;
+    await p.get("notes/a.md");
+    await p.put("notes/a.md", enc("v2"));
+    await p.delete("notes/a.md");
+
+    // 取得 1 + アップロード 1 + ゴミ箱 1。検索の往復は 1 度も挟まない。
+    expect(drive.urls().length).toBe(before + 3);
+    expect(drive.urls().slice(before).some((u) => u.includes("q="))).toBe(false);
+  });
+
+  it("消えていた ID は引き直してやり直す", async () => {
+    drive.seed("a.md", "v1");
+    const p = provider("");
+    await p.list();
+    drive.hardDelete("a.md"); // 他の誰かが完全に消した
+
+    await p.put("a.md", enc("v2"));
+
+    expect(drive.contents()).toHaveProperty("a.md", "v2");
+  });
+
+  it("同じ新しいフォルダへ同時に書いてもフォルダは一つ", async () => {
+    const p = provider("");
+    await Promise.all([p.put("議事録/a.md", enc("a")), p.put("議事録/b.md", enc("b"))]);
+
+    expect(drive.folderCount("議事録")).toBe(1);
+    expect(Object.keys(drive.contents()).sort()).toEqual(["議事録/a.md", "議事録/b.md"]);
+  });
+
+  it("サブフォルダは並列に辿る", async () => {
+    for (const dir of ["a", "b", "c", "d"]) drive.seed(`${dir}/x.md`, "x");
+    drive.delayMs = 5;
+
+    const started = Date.now();
+    await provider("").list();
+
+    // 直列なら 4 フォルダ × 5ms が積み上がる。並列ならルート + 1 段分で済む。
+    expect(Date.now() - started).toBeLessThan(4 * 5);
+  });
+});
+
 describe("escapeDriveQuery", () => {
   it("クエリを閉じてしまう引用符を潰す", () => {
     expect(escapeDriveQuery("O'Brien.md")).toBe("O\\'Brien.md");

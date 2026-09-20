@@ -3,12 +3,26 @@ export interface LocalFile {
   path: string;
   hash: string;
   mtime: number;
+  size: number;
+}
+
+/**
+ * 前回ハッシュしたときのファイルの姿。mtime と size が当時のままなら中身も同じと
+ * みなし、読み直さない。ベースラインに載せて再起動をまたいで持ち越す。
+ */
+export interface LocalStamp {
+  hash: string;
+  mtime: number;
+  size: number;
 }
 
 /** 1 パス分のベースライン。キーが無いことが「まだ同期していない」を意味する。 */
 export interface FileState {
   localHash: string;
   remoteVersion: string;
+  /** ハッシュを計算したときの姿。無ければ次の同期で読み直す（古い保存データ、ダウンロード直後）。 */
+  localMtime?: number;
+  localSize?: number;
 }
 
 export type SyncStateData = Record<string, FileState>;
