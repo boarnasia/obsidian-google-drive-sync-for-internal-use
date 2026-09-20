@@ -117,6 +117,22 @@ export const ja: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 完了 — ↓${down}、競合コピー ${conflicts} 件、ローカル固有 ${localOnly} 件`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "未整理",
+  sectionShared: "共有",
+  sectionTrash: "削除",
+  localOnlyIntro:
+    "この Vault にあって Drive に無いファイルです。各行を「共有」か「削除」に移してから、「ローカルファイルの整理」を実行してください。このファイルは同期されません。",
+  localIgnoreTitle: "自分だけの除外規則",
+  localIgnoreBody:
+    "ここに書いた規則は自分の Vault にだけ効きます。このファイルは同期されません。書式は _Sync/ignore.md と同じです。# はコメント、* ? ** はグロブ、先頭の / は同期ルート固定、末尾の / はフォルダ、! は打ち消しです。",
+  btnOrganize: "ローカルファイルの整理",
+  panelUnsorted: "未整理",
+  panelHeldUploads: "保留中のアップロード",
+  panelLocalOnlyDesc: "未整理が 0 件になるまで、新しいローカルファイルのアップロードは止まります。",
+  btnOpenLocalOnly: "一覧を開く",
+  organizeDone: (shared, trashed) => `ローカルファイルを整理しました — 共有 ${shared} 件、ゴミ箱へ ${trashed} 件`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "OAuth クライアントが設定されていません。設定画面でクライアント ID とシークレットを入力してから接続してください。",

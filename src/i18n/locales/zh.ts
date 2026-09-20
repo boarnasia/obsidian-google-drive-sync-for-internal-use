@@ -110,6 +110,22 @@ export const zh: Strings = {
   panelMore: (n) => `…还有 ${n} 项`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，冲突副本 ${conflicts} 个，仅本地 ${localOnly} 个`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "未整理",
+  sectionShared: "共享",
+  sectionTrash: "删除",
+  localOnlyIntro:
+    "此仓库中有而 Drive 中没有的文件。请把每一行移到“共享”或“删除”，然后执行“整理本地文件”。本文件不会被同步。",
+  localIgnoreTitle: "仅自己的忽略规则",
+  localIgnoreBody:
+    "这里的规则只对你自己的仓库生效，本文件不会被同步。语法与 _Sync/ignore.md 相同：# 是注释，* ? ** 是通配符，开头的 / 固定到同步根目录，结尾的 / 匹配文件夹，! 取消忽略。",
+  btnOrganize: "整理本地文件",
+  panelUnsorted: "未整理",
+  panelHeldUploads: "暂停的上传",
+  panelLocalOnlyDesc: "在未整理清空之前，新的本地文件不会上传。",
+  btnOpenLocalOnly: "打开列表",
+  organizeDone: (shared, trashed) => `已整理本地文件 — 共享 ${shared} 个，移入回收站 ${trashed} 个`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient: "未配置 OAuth 客户端。请在设置中输入客户端 ID 和密钥后再连接。",
   errNoRefreshToken: "未返回刷新令牌。请在 myaccount.google.com 撤销本应用的访问权限，然后重新连接。",

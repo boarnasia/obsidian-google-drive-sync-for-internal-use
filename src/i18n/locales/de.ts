@@ -118,6 +118,22 @@ export const de: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone fertig — ↓${down}, ${conflicts} Konfliktkopie(n), ${localOnly} nur lokale Datei(en)`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "Unsortiert",
+  sectionShared: "Teilen",
+  sectionTrash: "Löschen",
+  localOnlyIntro:
+    "Dateien, die es in diesem Tresor gibt und auf Drive nicht. Verschiebe jede Zeile nach „Teilen“ oder „Löschen“ und führe dann „Lokale Dateien sortieren“ aus. Diese Datei wird nie synchronisiert.",
+  localIgnoreTitle: "Deine eigenen Ausschlussregeln",
+  localIgnoreBody:
+    "Die Regeln hier gelten nur für deinen Tresor; diese Datei wird nie synchronisiert. Gleiche Syntax wie _Sync/ignore.md: # ist ein Kommentar, * ? ** sind Platzhalter, ein führender / bindet an die Synchronisierungswurzel, ein abschließender / trifft Ordner, ! hebt einen Ausschluss auf.",
+  btnOrganize: "Lokale Dateien sortieren",
+  panelUnsorted: "Unsortiert",
+  panelHeldUploads: "Angehaltene Uploads",
+  panelLocalOnlyDesc: "Uploads neuer lokaler Dateien bleiben angehalten, bis die Liste „Unsortiert“ leer ist.",
+  btnOpenLocalOnly: "Liste öffnen",
+  organizeDone: (shared, trashed) => `lokale Dateien sortiert — ${shared} zum Teilen, ${trashed} in den Papierkorb`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "Kein OAuth-Client eingerichtet – gib Client-ID und Secret in den Einstellungen ein und verbinde dich dann.",

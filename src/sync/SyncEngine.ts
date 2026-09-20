@@ -71,16 +71,31 @@ export class SyncEngine {
     private readonly remote: RemoteProvider,
     private readonly now: () => Date,
     private readonly deleteGuard: (trackedCount: number) => number = defaultDeleteGuard,
-    private readonly concurrency: number = DEFAULT_CONCURRENCY
+    private readonly concurrency: number = DEFAULT_CONCURRENCY,
+    /**
+     * 同期の対象外にするパス（ADR-0006）。除外は削除ではないので、当たったパスは
+     * 両側とも触らず、ベースラインからも外すだけにする。
+     */
+    private readonly ignored: (path: string) => boolean = () => false,
+    /**
+     * 分類が終わるまでアップロードを止めるパス。未整理のローカル固有ファイルが入る。
+     * 既存ファイルへの編集は止めないので、ここに入るのはリモートに無いものだけである。
+     */
+    private readonly held: ReadonlySet<string> = new Set()
   ) {}
 
   /** 両側を読む。ここだけがネットワークとファイルを触る入口。 */
   private async snapshot(prev: SyncStateData): Promise<Sides> {
     const [localList, remoteList] = await Promise.all([this.local.list(stampsOf(prev)), this.remote.list()]);
     return {
-      localMap: new Map(localList.map((f) => [f.path, f])),
-      remoteMap: new Map(remoteList.map((o) => [o.path, o])),
+      localMap: new Map(localList.filter((f) => !this.ignored(f.path)).map((f) => [f.path, f])),
+      remoteMap: new Map(remoteList.filter((o) => !this.ignored(o.path)).map((o) => [o.path, o])),
     };
+  }
+
+  /** 除外されたパスはベースラインからも外す。残すと、次の同期で削除と読まれる。 */
+  private trackedPaths(prev: SyncStateData): string[] {
+    return Object.keys(prev).filter((path) => !this.ignored(path));
   }
 
   /**
@@ -99,15 +114,19 @@ export class SyncEngine {
       deleteLocal: [],
       deleteRemote: [],
       localOnly: [],
+      unsorted: [],
       blocked: [],
-      deleteLimit: this.deleteGuard(Object.keys(prev).length),
+      deleteLimit: this.deleteGuard(this.trackedPaths(prev).length),
     };
 
-    for (const path of new Set([...localMap.keys(), ...remoteMap.keys(), ...Object.keys(prev)])) {
+    for (const path of new Set([...localMap.keys(), ...remoteMap.keys(), ...this.trackedPaths(prev)])) {
       const L = localMap.get(path);
       const R = remoteMap.get(path);
       const S = prev[path];
-      if (L && !R) plan.localOnly.push(path);
+      if (L && !R) {
+        plan.localOnly.push(path);
+        if (this.held.has(path)) plan.unsorted.push(path);
+      }
 
       const localChanged = L ? !S || L.hash !== S.localHash : !!S;
       const remoteChanged = R ? !S || R.version !== S.remoteVersion : !!S;
@@ -123,7 +142,7 @@ export class SyncEngine {
     }
 
     const { localDeletes, remoteDeletes } = this.planDeletions(prev, localMap, remoteMap);
-    const tracked = Object.keys(prev).length;
+    const tracked = this.trackedPaths(prev).length;
     if (tracked === 0 && localMap.size > 0 && remoteMap.size > 0) plan.blocked.push("no-baseline");
     if (tracked > 0 && localMap.size === 0) plan.blocked.push("vault-empty");
     if (localDeletes > plan.deleteLimit || remoteDeletes > plan.deleteLimit) plan.blocked.push("delete-guard");
@@ -149,18 +168,20 @@ export class SyncEngine {
     const holdUploads = plan.blocked.length > 0;
 
     const state: SyncStateData = { ...prev };
+    // 除外されたパスは、ベースラインからも落とす（ADR-0006）。
+    for (const path of Object.keys(state)) if (this.ignored(path)) delete state[path];
     const report = emptyReport();
     report.blocked = plan.blocked;
     report.localOnly = plan.localOnly;
 
-    const paths = new Set<string>([...localMap.keys(), ...remoteMap.keys(), ...Object.keys(prev)]);
+    const paths = new Set<string>([...localMap.keys(), ...remoteMap.keys(), ...this.trackedPaths(prev)]);
     // パスごとの判断は互いに独立している（触るのは自分の state[path] と report の配列だけ）。
     await runPool(paths, this.concurrency, async (path) => {
       try {
         await this.reconcile(path, localMap.get(path), remoteMap.get(path), prev[path], state, report, {
           deferLocal: deferLocal && !approved.has(path),
           deferRemote: deferRemote && !approved.has(path),
-          holdUploads: holdUploads && !approved.has(path),
+          holdUploads: (holdUploads || this.held.has(path)) && !approved.has(path),
         });
       } catch (e) {
         report.errors.push({ path, error: (e as Error).message });

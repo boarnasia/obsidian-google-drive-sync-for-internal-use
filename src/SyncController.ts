@@ -11,6 +11,17 @@ import { ObsidianLocalStore } from "./obsidian/ObsidianLocalStore";
 import { requestUrlHttp } from "./obsidian/requestUrlHttp";
 import { withRetry } from "./util/retry";
 import { DriveTarget, Settings } from "./settings";
+import { ignoreMatcher } from "./sync/ignore";
+import {
+  LOCAL_IGNORE_PATH,
+  LOCAL_ONLY_PATH,
+  TEAM_IGNORE_PATH,
+  TEAM_IGNORE_TEMPLATE,
+  TEAM_README_PATH,
+  TEAM_README_TEMPLATE,
+  localIgnoreTemplate,
+} from "./sync/configFiles";
+import { LocalOnlyLabels, parseLocalOnly, reconcileLocalOnly, renderLocalOnly } from "./sync/localOnly";
 import { t } from "./i18n";
 
 /**
@@ -19,6 +30,18 @@ import { t } from "./i18n";
  * フォルダにあっても他人のファイルは存在しないものとして扱われる（ADR-0004）。
  */
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
+
+/** 台帳と設定ファイルの見出しは、各自の UI 言語で書く（配られないため）。 */
+function localOnlyLabels(): LocalOnlyLabels {
+  return {
+    heading: { unsorted: t.sectionUnsorted, shared: t.sectionShared, trash: t.sectionTrash },
+    intro: t.localOnlyIntro,
+  };
+}
+
+function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
+  return local.write(path, new TextEncoder().encode(body).buffer);
+}
 
 /**
  * 検証済みのコアをプラグインに繋ぐ層。資格情報はこのプラグイン自身の data.json に
@@ -137,7 +160,7 @@ export class SyncController {
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await this.engine(target).sync(this.settings.syncState[key] ?? {}, opts);
+    const { state, report } = await (await this.engineFor(target)).sync(this.settings.syncState[key] ?? {}, opts);
     await this.commit(key, state, freshToken);
     return report;
   }
@@ -153,22 +176,96 @@ export class SyncController {
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await this.engine(target).clone(this.settings.syncState[key] ?? {});
+    const { state, report } = await (await this.engineFor(target)).clone(this.settings.syncState[key] ?? {});
     await this.commit(key, state, freshToken);
+    await this.writeLocalLedger(report.localOnly);
     return report;
+  }
+
+  /**
+   * clone の結果をローカル側の台帳に反映する（ADR-0006）。
+   *
+   * 設定ファイルは clone の後に、無いものだけ作る。有効化しただけの Vault には
+   * 何も書かない。clone の前に作ると、自分で作ったファイルが自分のローカル固有
+   * ファイルとして並ぶ。
+   */
+  private async writeLocalLedger(localOnly: readonly string[]): Promise<void> {
+    const local = this.store();
+    await this.ensureConfigFiles(local);
+
+    const previous = await local.readText(LOCAL_ONLY_PATH);
+    const doc = reconcileLocalOnly(parseLocalOnly(previous ?? ""), localOnly);
+    await writeText(local, LOCAL_ONLY_PATH, renderLocalOnly(doc, localOnlyLabels(), previous ?? undefined));
+  }
+
+  private async ensureConfigFiles(local: ObsidianLocalStore): Promise<void> {
+    const files: [string, string][] = [
+      [TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE],
+      [TEAM_README_PATH, TEAM_README_TEMPLATE],
+      [LOCAL_IGNORE_PATH, localIgnoreTemplate({ title: t.localIgnoreTitle, body: t.localIgnoreBody })],
+    ];
+    for (const [path, body] of files) {
+      if ((await local.readText(path)) === null) await writeText(local, path, body);
+    }
+  }
+
+  /**
+   * 分類の実行（ADR-0006）。「共有」はアップロードし、「削除」はローカルのゴミ箱へ送る。
+   * 「未整理」は何もしない。実行した行は台帳から消える。
+   */
+  async organizeLocalFiles(): Promise<{ shared: string[]; trashed: string[]; errors: string[] }> {
+    this.requireTarget(); // 同期先が無いうちは整理もできない（共有先が決まらない）
+    const local = this.store();
+    const previous = (await local.readText(LOCAL_ONLY_PATH)) ?? "";
+    const doc = parseLocalOnly(previous);
+    const result = { shared: [] as string[], trashed: [] as string[], errors: [] as string[] };
+
+    for (const path of doc.entries.trash) {
+      try {
+        await local.delete(path);
+        result.trashed.push(path);
+      } catch (e) {
+        result.errors.push(`${path}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    // 「共有」はここでは消し込むだけ。台帳から外れれば、次の同期で普通に上がる。
+    result.shared.push(...doc.entries.shared);
+
+    const remaining = reconcileLocalOnly(doc, doc.entries.unsorted);
+    await writeText(local, LOCAL_ONLY_PATH, renderLocalOnly(remaining, localOnlyLabels(), previous));
+
+    // 台帳から外れた「共有」は、この同期で普通の新規ファイルとして上がる。
+    if (result.shared.length > 0) await this.sync();
+    return result;
   }
 
   /** 適用せずに、今の同期が何をするかを数える。サイドバーの表示に使う。 */
   async plan(): Promise<SyncPlan> {
     const target = this.requireTarget();
-    return this.engine(target).plan(this.settings.syncState[target.folderId] ?? {});
+    return (await this.engineFor(target)).plan(this.settings.syncState[target.folderId] ?? {});
   }
 
-  private engine(target: DriveTarget): SyncEngine {
+  private store(): ObsidianLocalStore {
+    return new ObsidianLocalStore(this.app, this.settings.mountFolder);
+  }
+
+  private async engineFor(target: DriveTarget): Promise<SyncEngine> {
+    const local = this.store();
+    const [team, mine, localOnly] = await Promise.all([
+      local.readText(TEAM_IGNORE_PATH),
+      local.readText(LOCAL_IGNORE_PATH),
+      local.readText(LOCAL_ONLY_PATH),
+    ]);
+    // 未整理のものだけを止める。分類済み（共有・削除）は整理の対象で、止めない。
+    const held = new Set(localOnly ? parseLocalOnly(localOnly).entries.unsorted : []);
     return new SyncEngine(
-      new ObsidianLocalStore(this.app, this.settings.mountFolder),
+      local,
       new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http),
-      () => new Date()
+      () => new Date(),
+      undefined,
+      undefined,
+      ignoreMatcher(team, mine),
+      held
     );
   }
 

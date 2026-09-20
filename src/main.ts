@@ -13,6 +13,7 @@ import { SyncController } from "./SyncController";
 import { SyncReport } from "./sync/types";
 import { relativeTime } from "./util/time";
 import { SYNC_PANEL_VIEW, SyncPanelView } from "./obsidian/SyncPanelView";
+import { LOCAL_ONLY_PATH } from "./sync/configFiles";
 import { parseFolderId } from "./providers/drive/DriveTarget";
 import { LANGUAGE_NAMES, isLang, setLanguage, t } from "./i18n";
 
@@ -84,6 +85,18 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     if (!leaf) return;
     if (!existing.length) await leaf.setViewState({ type: SYNC_PANEL_VIEW, active: true });
     await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** 分類の台帳をエディタで開く。サイドバーからの入口。 */
+  async openLocalOnly(): Promise<void> {
+    const mount = this.settings.mountFolder.replace(/^\/+|\/+$/g, "");
+    const path = mount ? `${mount}/${LOCAL_ONLY_PATH}` : LOCAL_ONLY_PATH;
+    const file = this.app.vault.getFileByPath(path);
+    if (!file) {
+      new Notice(t.notice(t.errLocalMissing(path)));
+      return;
+    }
+    await this.app.workspace.getLeaf(true).openFile(file);
   }
 
   /** 同期の後に、開いている同期管理の表示を数え直す。 */

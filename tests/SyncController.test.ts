@@ -269,6 +269,133 @@ describe("接続の解除", () => {
   });
 });
 
+describe("Vault 内の設定ファイル", () => {
+  it("clone の後に、無いものだけ作る", async () => {
+    drive.seed("a.md", "x");
+    const c = connected();
+
+    await c.clone();
+
+    expect(vault.contentOf("_Sync/ignore.md")).toContain("Shared ignore rules");
+    expect(vault.contentOf("_Sync/README.md")).toContain("Google Drive Sync");
+    expect(vault.contentOf("_SyncLocal/ignore.md")).toBeDefined();
+    expect(vault.contentOf("_SyncLocal/local-only.md")).toContain("gds:unsorted");
+  });
+
+  it("すでにある設定ファイルは上書きしない", async () => {
+    vault.seed("_Sync/ignore.md", "# チームの決めごと\n下書き/");
+    drive.seed("a.md", "x");
+
+    await connected().clone();
+
+    expect(vault.contentOf("_Sync/ignore.md")).toBe("# チームの決めごと\n下書き/");
+  });
+
+  it("clone を通らなければ作らない（有効化しただけの Vault を汚さない）", async () => {
+    vault.seed("a.md", "x");
+
+    await connected().sync();
+
+    expect(vault.contentOf("_Sync/README.md")).toBeUndefined();
+  });
+
+  it("ローカル固有ファイルは未整理として台帳に載る", async () => {
+    vault.seed("私のメモ.md", "私的");
+    drive.seed("a.md", "x");
+
+    await connected().clone();
+
+    const ledger = vault.contentOf("_SyncLocal/local-only.md") as string;
+    expect(ledger).toContain("- [[私のメモ.md]]");
+    expect(ledger.indexOf("- [[私のメモ.md]]")).toBeGreaterThan(ledger.indexOf("gds:unsorted"));
+    expect(ledger.indexOf("- [[私のメモ.md]]")).toBeLessThan(ledger.indexOf("gds:shared"));
+  });
+});
+
+describe("除外規則", () => {
+  it("チームの規則に当たるファイルはアップロードしない", async () => {
+    vault.seed("_Sync/ignore.md", "下書き/");
+    vault.seed("下書き/秘密.md", "私的");
+    vault.seed("議事録.md", "共有");
+
+    const report = await connected().sync();
+
+    expect(report.uploaded).not.toContain("下書き/秘密.md");
+    expect(Object.keys(drive.contents())).not.toContain("下書き/秘密.md");
+    // 規則そのものはチームに配る。除外できてしまうと、以後ルールが届かなくなる。
+    expect(report.uploaded).toContain("_Sync/ignore.md");
+  });
+
+  it("各自の規則も効く", async () => {
+    vault.seed("_SyncLocal/ignore.md", "*.png");
+    vault.seed("図.png", "画像");
+    vault.seed("議事録.md", "共有");
+
+    const report = await connected().sync();
+
+    expect(report.uploaded).toEqual(["議事録.md"]);
+  });
+
+  it("各自の規則ファイルはチームに配らない", async () => {
+    vault.seed("_SyncLocal/ignore.md", "# 自分用");
+    vault.seed("a.md", "x");
+
+    await connected().sync();
+
+    expect(Object.keys(drive.contents())).toEqual(["a.md"]);
+  });
+});
+
+describe("ローカルファイルの整理", () => {
+  const ledger = (body: string): void => {
+    vault.seed("_SyncLocal/local-only.md", body);
+  };
+
+  it("「共有」はアップロードし、台帳から消える", async () => {
+    vault.seed("私のメモ.md", "私的");
+    ledger("## 共有 <!-- gds:shared -->\n\n- [[私のメモ.md]]\n");
+
+    const result = await connected().organizeLocalFiles();
+
+    expect(result.shared).toEqual(["私のメモ.md"]);
+    expect(drive.contents()).toHaveProperty("私のメモ.md", "私的");
+    expect(vault.contentOf("_SyncLocal/local-only.md")).not.toContain("- [[私のメモ.md]]");
+  });
+
+  it("「削除」はローカルのゴミ箱へ送る（リモートには触らない）", async () => {
+    vault.seed("いらない.md", "ごみ");
+    ledger("## 削除 <!-- gds:trash -->\n\n- [[いらない.md]]\n");
+
+    const result = await connected().organizeLocalFiles();
+
+    expect(result.trashed).toEqual(["いらない.md"]);
+    expect(vault.contentOf("いらない.md")).toBeUndefined();
+    expect(Object.keys(drive.contents())).toEqual([]);
+  });
+
+  it("「未整理」は手を付けず、アップロードも止めたままにする", async () => {
+    vault.seed("迷い中.md", "未定");
+    ledger("## 未整理 <!-- gds:unsorted -->\n\n- [[迷い中.md]]\n");
+
+    await connected().organizeLocalFiles();
+
+    expect(vault.contentOf("迷い中.md")).toBe("未定");
+    expect(Object.keys(drive.contents())).toEqual([]);
+    expect(vault.contentOf("_SyncLocal/local-only.md")).toContain("- [[迷い中.md]]");
+  });
+
+  it("未整理が残っている間は、新しいローカルファイルを上げない", async () => {
+    vault.seed("迷い中.md", "未定");
+    vault.seed("これも新しい.md", "新規");
+    ledger("## 未整理 <!-- gds:unsorted -->\n\n- [[迷い中.md]]\n");
+
+    const report = await connected().sync();
+
+    expect(report.heldUploads).toContain("迷い中.md");
+    expect(Object.keys(drive.contents())).toContain("これも新しい.md");
+  });
+});
+
 describe("同期先の確認", () => {
   it("未接続では確認しない", async () => {
     await expect(controller().lookupTarget("https://drive.google.com/drive/folders/x")).rejects.toThrow();

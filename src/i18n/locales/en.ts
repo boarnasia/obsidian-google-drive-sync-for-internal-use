@@ -119,6 +119,23 @@ export const en = {
   cloneDone: (down: number, conflicts: number, localOnly: number): string =>
     `clone done — ↓${down}, ${conflicts} conflict copy/copies, ${localOnly} local-only file(s)`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "Unsorted",
+  sectionShared: "Share",
+  sectionTrash: "Delete",
+  localOnlyIntro:
+    'Files in this vault that Drive does not have. Move each line to Share or Delete, then run "Sort local files". This file is never synced.',
+  localIgnoreTitle: "Your own ignore rules",
+  localIgnoreBody:
+    "Rules here apply only to your own vault; this file is never synced. Same syntax as _Sync/ignore.md: # is a comment, * ? ** are globs, a leading / anchors to the sync root, a trailing / matches folders, ! un-ignores.",
+  btnOrganize: "Sort local files",
+  panelUnsorted: "Unsorted",
+  panelHeldUploads: "Held uploads",
+  panelLocalOnlyDesc: "Uploads of new local files are on hold until the unsorted list is empty.",
+  btnOpenLocalOnly: "Open the list",
+  organizeDone: (shared: number, trashed: number): string =>
+    `sorted local files — ${shared} to share, ${trashed} moved to the trash`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient: "No OAuth client configured — enter the client ID and secret in settings, then connect.",
   errNoRefreshToken: "No refresh token returned — revoke the app at myaccount.google.com and connect again.",

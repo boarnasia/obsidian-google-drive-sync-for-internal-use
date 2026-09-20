@@ -117,6 +117,22 @@ export const ko: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "미분류",
+  sectionShared: "공유",
+  sectionTrash: "삭제",
+  localOnlyIntro:
+    "이 보관소에는 있지만 Drive에는 없는 파일입니다. 각 줄을 '공유' 또는 '삭제'로 옮긴 뒤 '로컬 파일 정리'를 실행하세요. 이 파일은 동기화되지 않습니다.",
+  localIgnoreTitle: "나만의 제외 규칙",
+  localIgnoreBody:
+    "여기에 쓴 규칙은 내 보관소에만 적용되며, 이 파일은 동기화되지 않습니다. 문법은 _Sync/ignore.md와 같습니다. #은 주석, * ? **는 글롭, 앞의 /는 동기화 루트 고정, 뒤의 /는 폴더, !는 해제입니다.",
+  btnOrganize: "로컬 파일 정리",
+  panelUnsorted: "미분류",
+  panelHeldUploads: "보류된 업로드",
+  panelLocalOnlyDesc: "미분류가 0건이 될 때까지 새 로컬 파일은 업로드되지 않습니다.",
+  btnOpenLocalOnly: "목록 열기",
+  organizeDone: (shared, trashed) => `로컬 파일을 정리했습니다 — 공유 ${shared}건, 휴지통 ${trashed}건`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "OAuth 클라이언트가 설정되지 않았습니다. 설정에서 클라이언트 ID와 보안 비밀을 입력한 뒤 연결하세요.",

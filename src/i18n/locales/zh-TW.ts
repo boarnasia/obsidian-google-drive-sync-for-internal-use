@@ -110,6 +110,22 @@ export const zhTW: Strings = {
   panelMore: (n) => `…還有 ${n} 項`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，衝突副本 ${conflicts} 個，僅本機 ${localOnly} 個`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "未整理",
+  sectionShared: "共用",
+  sectionTrash: "刪除",
+  localOnlyIntro:
+    "此儲存庫中有而 Drive 中沒有的檔案。請把每一行移到「共用」或「刪除」，然後執行「整理本機檔案」。本檔案不會被同步。",
+  localIgnoreTitle: "僅自己的忽略規則",
+  localIgnoreBody:
+    "這裡的規則只對你自己的儲存庫生效，本檔案不會被同步。語法與 _Sync/ignore.md 相同：# 是註解，* ? ** 是萬用字元，開頭的 / 固定到同步根目錄，結尾的 / 比對資料夾，! 取消忽略。",
+  btnOrganize: "整理本機檔案",
+  panelUnsorted: "未整理",
+  panelHeldUploads: "暫停的上傳",
+  panelLocalOnlyDesc: "在未整理清空之前，新的本機檔案不會上傳。",
+  btnOpenLocalOnly: "開啟清單",
+  organizeDone: (shared, trashed) => `已整理本機檔案 — 共用 ${shared} 個，移入垃圾桶 ${trashed} 個`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient: "尚未設定 OAuth 用戶端。請在設定中輸入用戶端 ID 與密鑰後再連線。",
   errNoRefreshToken: "未傳回更新權杖。請在 myaccount.google.com 撤銷本應用程式的存取權，然後重新連線。",

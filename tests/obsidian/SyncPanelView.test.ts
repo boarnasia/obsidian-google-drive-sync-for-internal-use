@@ -15,6 +15,7 @@ const plan = (over: Partial<SyncPlan> = {}): SyncPlan => ({
   deleteLocal: [],
   deleteRemote: [],
   localOnly: [],
+  unsorted: [],
   blocked: [],
   deleteLimit: 10,
   ...over,
@@ -29,14 +30,17 @@ function fakePlugin(over: { plan?: SyncPlan; ready?: boolean; connected?: boolea
       ready: over.ready ?? true,
       plan: vi.fn(async () => over.plan ?? plan()),
       clone: vi.fn(async () => emptyReport()),
+      organizeLocalFiles: vi.fn(async () => ({ shared: [] as string[], trashed: [] as string[], errors: [] as string[] })),
     },
     runSync: vi.fn(async (_opts?: { approvedDeletes?: ReadonlySet<string> }) => undefined),
+    openLocalOnly: vi.fn(async () => undefined),
   };
 }
 
 /** テストが触る面。private をまたぐので、交差型ではなく構造で受ける。 */
 interface Panel {
   refresh(): Promise<void>;
+  runOrganize(): void;
   plan: SyncPlan | null;
   approved: Set<string>;
   runClone(): void;
@@ -117,6 +121,18 @@ describe("削除の承認", () => {
     await vi.waitFor(() => expect(plugin.runSync).toHaveBeenCalled());
 
     expect(panel.approved.size).toBe(0);
+  });
+});
+
+describe("ローカルファイルの整理", () => {
+  it("整理してから差分を数え直す", async () => {
+    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md"], unsorted: [] }) });
+    const panel = panelOf(plugin);
+    await panel.refresh();
+
+    panel.runOrganize();
+    await vi.waitFor(() => expect(plugin.controller.organizeLocalFiles).toHaveBeenCalled());
+    await vi.waitFor(() => expect(plugin.controller.plan).toHaveBeenCalledTimes(2));
   });
 });
 

@@ -118,6 +118,23 @@ export const es: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminado — ↓${down}, ${conflicts} copia(s) de conflicto, ${localOnly} archivo(s) solo local`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "Sin clasificar",
+  sectionShared: "Compartir",
+  sectionTrash: "Eliminar",
+  localOnlyIntro:
+    "Archivos que hay en esta bóveda y no en Drive. Mueve cada línea a «Compartir» o «Eliminar» y luego ejecuta «Ordenar archivos locales». Este archivo nunca se sincroniza.",
+  localIgnoreTitle: "Tus propias reglas de exclusión",
+  localIgnoreBody:
+    "Las reglas de aquí solo afectan a tu bóveda; este archivo nunca se sincroniza. Misma sintaxis que _Sync/ignore.md: # es comentario, * ? ** son comodines, una / inicial ancla a la raíz de sincronización, una / final coincide con carpetas y ! deshace una exclusión.",
+  btnOrganize: "Ordenar archivos locales",
+  panelUnsorted: "Sin clasificar",
+  panelHeldUploads: "Subidas en pausa",
+  panelLocalOnlyDesc:
+    "Las subidas de archivos locales nuevos están en pausa hasta que la lista sin clasificar quede vacía.",
+  btnOpenLocalOnly: "Abrir la lista",
+  organizeDone: (shared, trashed) => `archivos locales ordenados — ${shared} para compartir, ${trashed} a la papelera`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "No hay cliente OAuth configurado: introduce el ID y el secreto de cliente en los ajustes y luego conecta.",

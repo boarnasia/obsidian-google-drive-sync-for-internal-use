@@ -76,6 +76,10 @@ export class FakeVault {
     return this.files.get(path) ?? this.folders.get(path) ?? null;
   }
 
+  async read(file: TFile): Promise<string> {
+    return new TextDecoder().decode(await this.readBinary(file));
+  }
+
   async readBinary(file: TFile): Promise<ArrayBuffer> {
     this.readPaths.push(file.path);
     const b = this.bytes.get(file.path);

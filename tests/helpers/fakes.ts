@@ -88,6 +88,10 @@ export class FakeLocal implements LocalStore {
     if (!d) throw new Error("not found: " + path);
     return d;
   }
+  async readText(path: string): Promise<string | null> {
+    const d = this.store.get(path);
+    return d === undefined ? null : dec(d);
+  }
   async write(path: string, data: ArrayBuffer): Promise<void> {
     if (path.split("/").includes("..")) throw new Error("unsafe path: " + path);
     this.store.set(path, data);

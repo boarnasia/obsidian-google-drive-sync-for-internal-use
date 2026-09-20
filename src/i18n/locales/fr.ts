@@ -118,6 +118,23 @@ export const fr: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminé — ↓${down}, ${conflicts} copie(s) de conflit, ${localOnly} fichier(s) local uniquement`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "Non trié",
+  sectionShared: "Partager",
+  sectionTrash: "Supprimer",
+  localOnlyIntro:
+    "Fichiers présents dans ce coffre et absents de Drive. Déplacez chaque ligne vers « Partager » ou « Supprimer », puis lancez « Trier les fichiers locaux ». Ce fichier n’est jamais synchronisé.",
+  localIgnoreTitle: "Vos propres règles d’exclusion",
+  localIgnoreBody:
+    "Les règles écrites ici ne valent que pour votre coffre ; ce fichier n’est jamais synchronisé. Même syntaxe que _Sync/ignore.md : # pour un commentaire, * ? ** comme jokers, un / initial ancre à la racine de synchronisation, un / final vise les dossiers, ! annule une exclusion.",
+  btnOrganize: "Trier les fichiers locaux",
+  panelUnsorted: "Non trié",
+  panelHeldUploads: "Envois suspendus",
+  panelLocalOnlyDesc:
+    "L’envoi des nouveaux fichiers locaux est suspendu tant que la liste « Non trié » n’est pas vide.",
+  btnOpenLocalOnly: "Ouvrir la liste",
+  organizeDone: (shared, trashed) => `fichiers locaux triés — ${shared} à partager, ${trashed} à la corbeille`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "Aucun client OAuth configuré — saisissez l’ID client et le secret dans les paramètres, puis connectez-vous.",

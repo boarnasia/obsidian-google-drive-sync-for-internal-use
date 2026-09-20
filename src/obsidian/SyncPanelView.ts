@@ -87,6 +87,7 @@ export class SyncPanelView extends ItemView {
     this.renderActions(root);
     if (this.plan) {
       this.renderHeldDeletes(root, this.plan);
+      this.renderUnsorted(root, this.plan);
       this.renderCounts(root, this.plan);
     }
   }
@@ -127,10 +128,12 @@ export class SyncPanelView extends ItemView {
 
   private renderActions(root: HTMLElement): void {
     const canSync = !!this.plan && this.plan.blocked.length === 0;
+    const hasSorted = !!this.plan && this.plan.localOnly.length > this.plan.unsorted.length;
     new Setting(root)
       .setName(t.panelActions)
       .addButton((b) => this.action(b, t.syncNowName, canSync && !this.busy, () => this.runSync()))
       .addButton((b) => this.action(b, t.btnClone, !this.busy, () => this.runClone()))
+      .addButton((b) => this.action(b, t.btnOrganize, hasSorted && !this.busy, () => this.runOrganize()))
       .addButton((b) => this.action(b, t.btnRefresh, !this.busy, () => void this.refresh()));
   }
 
@@ -182,6 +185,29 @@ export class SyncPanelView extends ItemView {
       );
   }
 
+  /**
+   * 未整理は、新規アップロードが止まっている理由そのものなので、件数だけでなく
+   * 台帳への入口も出す。分類はここでもファイルでもできる（ADR-0006）。
+   */
+  private renderUnsorted(root: HTMLElement, plan: SyncPlan): void {
+    if (plan.unsorted.length === 0) return;
+    root.createEl("h4", { text: `${t.panelUnsorted}（${plan.unsorted.length}）` });
+    root.createDiv({ cls: "gds-panel-note", text: t.panelLocalOnlyDesc });
+
+    const list = root.createDiv({ cls: "gds-panel-list" });
+    for (const path of plan.unsorted.slice(0, MAX_ROWS)) list.createDiv({ cls: "gds-panel-row", text: path });
+    if (plan.unsorted.length > MAX_ROWS) {
+      list.createDiv({ cls: "gds-panel-note", text: t.panelMore(plan.unsorted.length - MAX_ROWS) });
+    }
+
+    new Setting(root).addButton((b) =>
+      b
+        .setButtonText(t.btnOpenLocalOnly)
+        .setDisabled(this.busy)
+        .onClick(() => void this.plugin.openLocalOnly())
+    );
+  }
+
   private renderCounts(root: HTMLElement, plan: SyncPlan): void {
     const rows: [string, string[]][] = [
       [t.panelUpload, plan.upload],
@@ -230,6 +256,14 @@ export class SyncPanelView extends ItemView {
         t.notice(t.cloneDone(report.downloaded.length, report.conflicts.length, report.localOnly.length)),
         NOTICE_MS
       );
+    });
+  }
+
+  private runOrganize(): void {
+    void this.withBusy(async () => {
+      const result = await this.plugin.controller.organizeLocalFiles();
+      new Notice(t.notice(t.organizeDone(result.shared.length, result.trashed.length)), NOTICE_MS);
+      for (const error of result.errors) new Notice(t.notice(error), NOTICE_MS);
     });
   }
 

@@ -119,6 +119,23 @@ export const ptBR: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone concluído — ↓${down}, ${conflicts} cópia(s) de conflito, ${localOnly} arquivo(s) somente local`,
 
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  sectionUnsorted: "Sem classificar",
+  sectionShared: "Compartilhar",
+  sectionTrash: "Excluir",
+  localOnlyIntro:
+    "Arquivos que existem neste cofre e não no Drive. Mova cada linha para “Compartilhar” ou “Excluir” e depois execute “Organizar arquivos locais”. Este arquivo nunca é sincronizado.",
+  localIgnoreTitle: "Suas próprias regras de exclusão",
+  localIgnoreBody:
+    "As regras daqui valem só para o seu cofre; este arquivo nunca é sincronizado. Mesma sintaxe de _Sync/ignore.md: # é comentário, * ? ** são curingas, uma / inicial fixa na raiz da sincronização, uma / final casa com pastas e ! desfaz uma exclusão.",
+  btnOrganize: "Organizar arquivos locais",
+  panelUnsorted: "Sem classificar",
+  panelHeldUploads: "Envios pausados",
+  panelLocalOnlyDesc: "O envio de novos arquivos locais fica pausado até a lista “Sem classificar” ficar vazia.",
+  btnOpenLocalOnly: "Abrir a lista",
+  organizeDone: (shared, trashed) =>
+    `arquivos locais organizados — ${shared} para compartilhar, ${trashed} para a lixeira`,
+
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:
     "Nenhum cliente OAuth configurado — informe o ID e a chave secreta do cliente nas configurações e depois conecte.",

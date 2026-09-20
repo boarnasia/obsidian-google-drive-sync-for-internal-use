@@ -108,6 +108,19 @@ export class ObsidianLocalStore implements LocalStore {
     return this.app.vault.readBinary(file);
   }
 
+  /**
+   * 設定ファイル用。無ければ null を返す。
+   *
+   * 同期の対象かどうかとは無関係に読む必要がある（`_SyncLocal/` は同期しないが、
+   * 読み書きはする）。
+   */
+  async readText(path: string): Promise<string | null> {
+    const full = this.resolve(path);
+    const file = this.app.vault.getFileByPath(full);
+    if (!file) return null;
+    return this.app.vault.read(file);
+  }
+
   // ---------------------------------------------------------------- 書き込み
 
   /**
