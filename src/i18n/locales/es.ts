@@ -101,6 +101,12 @@ export const es: Strings = {
   panelActions: "Acciones",
   btnClone: "Traer desde Drive",
   btnRefresh: "Ver estado",
+  tipSyncNow: "Envía tus cambios a Drive y trae aquí los de los demás.",
+  tipClone: "Trae aquí la copia de Drive. No borra nada local; los archivos que Drive no tiene aparecen abajo.",
+  tipRefresh: "Vuelve a contar las diferencias. No sube, no baja y no borra nada.",
+  panelPause: "Pausar la sincronización",
+  panelPauseDesc: "La sincronización va sola. Al pausarla deja de ir sola; «Sincronizar ahora» sigue funcionando.",
+  panelPausedDesc: "En pausa: nada se sincroniza solo. «Sincronizar ahora» sigue funcionando.",
   panelLastSynced: (rel) => `Última sincronización: ${rel}`,
   panelCheckedAt: (rel) => `Comprobado: ${rel}`,
   panelHeldDeletes: (n) => `Eliminaciones en espera (${n})`,
@@ -108,6 +114,8 @@ export const es: Strings = {
     "No se elimina nada hasta que lo apruebes. Los archivos aprobados van a la papelera: Drive la vacía a los 30 días y, después, un administrador aún puede restaurarlos durante 25 días.",
   btnSelectAll: "Seleccionar todo",
   btnApproveDeletes: (n) => `Eliminar ${n} seleccionados`,
+  tipSelectAll: "Marca todos los archivos de la lista de arriba.",
+  tipApproveDeletes: "Borra los archivos marcados y termina esta sincronización.",
   panelChanges: "Cambios",
   panelUpload: "Subida",
   panelDownload: "Descarga",
@@ -119,21 +127,24 @@ export const es: Strings = {
     `clone terminado — ↓${down}, ${conflicts} copia(s) de conflicto, ${localOnly} archivo(s) solo local`,
 
   // ------------------------------------------------ ローカル固有ファイルの分類
-  sectionUnsorted: "Sin clasificar",
-  sectionShared: "Compartir",
-  sectionTrash: "Eliminar",
-  localOnlyIntro:
-    "Archivos que hay en esta bóveda y no en Drive. Mueve cada línea a «Compartir» o «Eliminar» y luego ejecuta «Ordenar archivos locales». Este archivo nunca se sincroniza.",
   localIgnoreTitle: "Tus propias reglas de exclusión",
   localIgnoreBody:
     "Las reglas de aquí solo afectan a tu bóveda; este archivo nunca se sincroniza. Misma sintaxis que _Sync/ignore.md: # es comentario, * ? ** son comodines, una / inicial ancla a la raíz de sincronización, una / final coincide con carpetas y ! deshace una exclusión.",
-  btnOrganize: "Ordenar archivos locales",
-  panelUnsorted: "Sin clasificar",
-  panelHeldUploads: "Subidas en pausa",
-  panelLocalOnlyDesc:
-    "Las subidas de archivos locales nuevos están en pausa hasta que la lista sin clasificar quede vacía.",
-  btnOpenLocalOnly: "Abrir la lista",
-  organizeDone: (shared, trashed) => `archivos locales ordenados — ${shared} para compartir, ${trashed} a la papelera`,
+  panelUnsorted: (n) => `Sin decidir (${n})`,
+  panelLocalOnlyDesc: "Drive no tiene estos archivos. Cada uno se queda aquí, sin subir, hasta que decidas.",
+  btnShare: "Compartir",
+  btnTrash: "Eliminar",
+  btnShareAll: (n) => `Compartir los ${n}`,
+  btnTrashAll: (n) => `Eliminar los ${n}`,
+  tipShare: "Sube este archivo a Drive para que lo tenga el equipo.",
+  tipTrash: "Manda este archivo a la papelera. Drive no se toca: nunca tuvo este archivo.",
+  tipShareAll: "Sube a Drive todos los archivos de la lista.",
+  tipTrashAll: "Manda a la papelera todos los archivos de la lista.",
+  confirmTrashTitle: "¿Eliminar estos archivos?",
+  confirmTrashBody: (n) => `${n} archivo(s) van a la papelera. No están en Drive, así que esta es la única copia; todavía puedes recuperarlos desde la papelera.`,
+  btnCancel: "Cancelar",
+  sharedDone: (n) => `${n} archivo(s) compartidos`,
+  trashedDone: (n) => `${n} archivo(s) enviados a la papelera`,
 
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:

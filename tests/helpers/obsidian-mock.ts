@@ -45,6 +45,7 @@ export class Component {
   onChange() { return this; }
   onClick() { return this; }
   setDisabled() { return this; }
+  setTooltip() { return this; }
   setWarning() { return this; }
   setDestructive() { return this; }
 }
@@ -191,7 +192,20 @@ export class ItemView {
 
 export class WorkspaceLeaf {}
 
-export class ButtonComponent extends Component {}
+export class ButtonComponent extends Component {
+  constructor(_containerEl?: unknown) { super(); }
+}
+
+/** 取り消しの利かない操作の確認。開閉だけを再現する。 */
+export class Modal {
+  titleEl = makeEl();
+  contentEl = makeEl();
+  constructor(public app: unknown) {}
+  open() { this.onOpen(); }
+  close() { this.onClose(); }
+  onOpen() {}
+  onClose() {}
+}
 
 /**
  * Real classes, not interfaces: the store narrows with `instanceof TFile` /

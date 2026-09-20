@@ -279,7 +279,6 @@ describe("Vault 内の設定ファイル", () => {
     expect(vault.contentOf("_Sync/ignore.md")).toContain("Shared ignore rules");
     expect(vault.contentOf("_Sync/README.md")).toContain("Google Drive Sync");
     expect(vault.contentOf("_SyncLocal/ignore.md")).toBeDefined();
-    expect(vault.contentOf("_SyncLocal/local-only.md")).toContain("gds:unsorted");
   });
 
   it("すでにある設定ファイルは上書きしない", async () => {
@@ -299,16 +298,13 @@ describe("Vault 内の設定ファイル", () => {
     expect(vault.contentOf("_Sync/README.md")).toBeUndefined();
   });
 
-  it("ローカル固有ファイルは未整理として台帳に載る", async () => {
+  it("ローカル固有ファイルは未整理として控える", async () => {
     vault.seed("私のメモ.md", "私的");
     drive.seed("a.md", "x");
 
     await connected().clone();
 
-    const ledger = vault.contentOf("_SyncLocal/local-only.md") as string;
-    expect(ledger).toContain("- [[私のメモ.md]]");
-    expect(ledger.indexOf("- [[私のメモ.md]]")).toBeGreaterThan(ledger.indexOf("gds:unsorted"));
-    expect(ledger.indexOf("- [[私のメモ.md]]")).toBeLessThan(ledger.indexOf("gds:shared"));
+    expect(settings.unsorted[ROOT]).toEqual(["私のメモ.md"]);
   });
 });
 
@@ -346,53 +342,63 @@ describe("除外規則", () => {
   });
 });
 
-describe("ローカルファイルの整理", () => {
-  const ledger = (body: string): void => {
-    vault.seed("_SyncLocal/local-only.md", body);
+describe("ローカル固有ファイルの分類", () => {
+  const unsorted = (...paths: string[]): void => {
+    settings.unsorted[ROOT] = paths;
   };
 
-  it("「共有」はアップロードし、台帳から消える", async () => {
+  it("「共有」はアップロードし、保留から外れる", async () => {
     vault.seed("私のメモ.md", "私的");
-    ledger("## 共有 <!-- gds:shared -->\n\n- [[私のメモ.md]]\n");
+    unsorted("私のメモ.md");
 
-    const result = await connected().organizeLocalFiles();
+    const report = await connected().shareLocalFiles(["私のメモ.md"]);
 
-    expect(result.shared).toEqual(["私のメモ.md"]);
+    expect(report.uploaded).toContain("私のメモ.md");
     expect(drive.contents()).toHaveProperty("私のメモ.md", "私的");
-    expect(vault.contentOf("_SyncLocal/local-only.md")).not.toContain("- [[私のメモ.md]]");
+    expect(settings.unsorted[ROOT]).toEqual([]);
   });
 
   it("「削除」はローカルのゴミ箱へ送る（リモートには触らない）", async () => {
     vault.seed("いらない.md", "ごみ");
-    ledger("## 削除 <!-- gds:trash -->\n\n- [[いらない.md]]\n");
+    unsorted("いらない.md");
 
-    const result = await connected().organizeLocalFiles();
+    const result = await connected().trashLocalFiles(["いらない.md"]);
 
     expect(result.trashed).toEqual(["いらない.md"]);
     expect(vault.contentOf("いらない.md")).toBeUndefined();
     expect(Object.keys(drive.contents())).toEqual([]);
+    expect(settings.unsorted[ROOT]).toEqual([]);
   });
 
-  it("「未整理」は手を付けず、アップロードも止めたままにする", async () => {
+  it("決めていないファイルは、上げも消しもしない", async () => {
     vault.seed("迷い中.md", "未定");
-    ledger("## 未整理 <!-- gds:unsorted -->\n\n- [[迷い中.md]]\n");
+    unsorted("迷い中.md");
 
-    await connected().organizeLocalFiles();
+    const report = await connected().sync();
 
+    expect(report.heldUploads).toContain("迷い中.md");
     expect(vault.contentOf("迷い中.md")).toBe("未定");
     expect(Object.keys(drive.contents())).toEqual([]);
-    expect(vault.contentOf("_SyncLocal/local-only.md")).toContain("- [[迷い中.md]]");
+    expect(settings.unsorted[ROOT]).toEqual(["迷い中.md"]);
   });
 
-  it("未整理が残っている間は、新しいローカルファイルを上げない", async () => {
+  it("未整理が残っていても、他のファイルは上がる", async () => {
     vault.seed("迷い中.md", "未定");
     vault.seed("これも新しい.md", "新規");
-    ledger("## 未整理 <!-- gds:unsorted -->\n\n- [[迷い中.md]]\n");
+    unsorted("迷い中.md");
 
     const report = await connected().sync();
 
     expect(report.heldUploads).toContain("迷い中.md");
     expect(Object.keys(drive.contents())).toContain("これも新しい.md");
+  });
+
+  it("消えたファイルの保留は、次の同期で落ちる", async () => {
+    unsorted("もう無い.md");
+
+    await connected().sync();
+
+    expect(settings.unsorted[ROOT]).toEqual([]);
   });
 });
 

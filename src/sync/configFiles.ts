@@ -1,5 +1,3 @@
-import { LocalOnlyLabels, renderLocalOnly } from "./localOnly";
-
 /**
  * Vault 内の設定ファイル（ADR-0006）。clone が成功した直後に、無いものだけ作る。
  *
@@ -12,7 +10,6 @@ export const SYNC_LOCAL_DIR = "_SyncLocal";
 export const TEAM_IGNORE_PATH = `${SYNC_DIR}/ignore.md`;
 export const TEAM_README_PATH = `${SYNC_DIR}/README.md`;
 export const LOCAL_IGNORE_PATH = `${SYNC_LOCAL_DIR}/ignore.md`;
-export const LOCAL_ONLY_PATH = `${SYNC_LOCAL_DIR}/local-only.md`;
 
 /** 共有される説明は英語で固定する（ADR-0006）。 */
 export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules
@@ -51,7 +48,6 @@ the team points the plugin at the same Drive folder.
   - \`ignore.md\` — paths that are never synced.
 - \`_SyncLocal/\` is never synced. It only exists in your own vault.
   - \`ignore.md\` — paths you alone do not want synced.
-  - \`local-only.md\` — files you have that Drive does not, waiting to be sorted.
 
 ## How syncing works here
 
@@ -60,13 +56,11 @@ the team points the plugin at the same Drive folder.
 - If the plugin is unsure that its record of the last sync still matches reality,
   it holds uploads and tells you why in the sync manager. Downloads keep working.
 - "Pull from Drive" brings the remote copy here without deleting anything local.
-  Files you have that Drive does not are listed in \`_SyncLocal/local-only.md\`.
+  Files you have that Drive does not are listed in the sync manager, where you
+  decide one by one whether to share or delete them. Until you decide, they are
+  not uploaded.
 `;
 
 export function localIgnoreTemplate(labels: { title: string; body: string }): string {
   return `# ${labels.title}\n\n${labels.body}\n`;
-}
-
-export function localOnlyTemplate(labels: LocalOnlyLabels): string {
-  return renderLocalOnly({ entries: { unsorted: [], shared: [], trash: [] }, unmarked: [] }, labels);
 }

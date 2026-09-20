@@ -40,6 +40,11 @@ export interface Settings {
   syncState: Record<string, SyncStateData>;
   /** 失っても「変更あり」扱いで正しさは保たれる。 */
   changeToken: Record<string, string>;
+  /**
+   * 取り込みで見つかった、リモートに無いローカルのファイル（ADR-0006）。共有か削除かを
+   * 決めるまでアップロードを止める。決めた時点で行が消えるので、空が通常の状態である。
+   */
+  unsorted: Record<string, string[]>;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -59,4 +64,5 @@ export const DEFAULT_SETTINGS: Settings = {
 
   syncState: {},
   changeToken: {},
+  unsorted: {},
 };

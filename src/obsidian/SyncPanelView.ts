@@ -2,6 +2,7 @@ import { ButtonComponent, ItemView, Notice, Setting, WorkspaceLeaf } from "obsid
 import type GoogleDriveSyncPlugin from "../main";
 import { BlockReason, SyncPlan } from "../sync/types";
 import { relativeTime } from "../util/time";
+import { ConfirmModal } from "./ConfirmModal";
 import { t } from "../i18n";
 
 export const SYNC_PANEL_VIEW = "google-drive-sync-panel";
@@ -10,7 +11,8 @@ export const SYNC_PANEL_VIEW = "google-drive-sync-panel";
  * 同期管理のサイドバー。
  *
  * 見えないまま自動で進む同期に、目と手を付けるための画面である。何が起きるのかを
- * 適用前に見せ、止まっているならその理由と抜け道を出す（ADR-0005）。
+ * 適用前に見せ、止まっているならその理由と抜け道を出す（ADR-0005）。ローカル固有
+ * ファイルの分類もここで完結させる（ADR-0006）。
  */
 export class SyncPanelView extends ItemView {
   private plan: SyncPlan | null = null;
@@ -114,9 +116,7 @@ export class SyncPanelView extends ItemView {
     const last = this.plugin.settings.lastSyncAt;
     box.createDiv({
       cls: "gds-panel-note",
-      text: last
-        ? t.panelLastSynced(relativeTime(last, Date.now(), t.relWords))
-        : t.syncNowDescNever,
+      text: last ? t.panelLastSynced(relativeTime(last, Date.now(), t.relWords)) : t.syncNowDescNever,
     });
     if (this.computedAt) {
       box.createDiv({
@@ -126,20 +126,38 @@ export class SyncPanelView extends ItemView {
     }
   }
 
+  /**
+   * ボタンは幅に合わせて折り返す。サイドバーは利用者が好きな幅にするもので、
+   * 狭いときに横一列を押し通すと、端のボタンが読めないまま切れる。
+   */
   private renderActions(root: HTMLElement): void {
     const canSync = !!this.plan && this.plan.blocked.length === 0;
-    const hasSorted = !!this.plan && this.plan.localOnly.length > this.plan.unsorted.length;
+    root.createEl("h4", { text: t.panelActions });
+
+    const row = root.createDiv({ cls: "gds-panel-actions" });
+    this.action(row, t.syncNowName, t.tipSyncNow, canSync && !this.busy, () => this.runSync()).setCta();
+    this.action(row, t.btnClone, t.tipClone, !this.busy, () => this.runClone());
+    this.action(row, t.btnRefresh, t.tipRefresh, !this.busy, () => void this.refresh());
+
+    const paused = !this.plugin.settings.autoSync;
     new Setting(root)
-      .setName(t.panelActions)
-      .addButton((b) => this.action(b, t.syncNowName, canSync && !this.busy, () => this.runSync()))
-      .addButton((b) => this.action(b, t.btnClone, !this.busy, () => this.runClone()))
-      .addButton((b) => this.action(b, t.btnOrganize, hasSorted && !this.busy, () => this.runOrganize()))
-      .addButton((b) => this.action(b, t.btnRefresh, !this.busy, () => void this.refresh()));
+      .setName(t.panelPause)
+      .setDesc(paused ? t.panelPausedDesc : t.panelPauseDesc)
+      .addToggle((toggle) =>
+        toggle.setValue(paused).onChange((v) => {
+          void this.plugin.setAutoSync(!v).then(() => this.render());
+        })
+      );
   }
 
-  private action(b: ButtonComponent, label: string, enabled: boolean, onClick: () => void): void {
-    b.setButtonText(label).setDisabled(!enabled).onClick(onClick);
-    if (label === t.syncNowName && enabled) b.setCta();
+  private action(
+    parent: HTMLElement,
+    label: string,
+    tooltip: string,
+    enabled: boolean,
+    onClick: () => void
+  ): ButtonComponent {
+    return new ButtonComponent(parent).setButtonText(label).setTooltip(tooltip).setDisabled(!enabled).onClick(onClick);
   }
 
   /**
@@ -167,45 +185,45 @@ export class SyncPanelView extends ItemView {
     }
     if (held.length > MAX_ROWS) list.createDiv({ cls: "gds-panel-note", text: t.panelMore(held.length - MAX_ROWS) });
 
-    new Setting(root)
-      .addButton((b) =>
-        b
-          .setButtonText(t.btnSelectAll)
-          .setDisabled(this.busy)
-          .onClick(() => {
-            for (const path of held) this.approved.add(path);
-            this.render();
-          })
-      )
-      .addButton((b) =>
-        b
-          .setButtonText(t.btnApproveDeletes(this.approved.size))
-          .setDisabled(this.busy || this.approved.size === 0)
-          .onClick(() => this.approveDeletes())
-      );
+    const actions = root.createDiv({ cls: "gds-panel-actions" });
+    this.action(actions, t.btnSelectAll, t.tipSelectAll, !this.busy, () => {
+      for (const path of held) this.approved.add(path);
+      this.render();
+    });
+    this.action(
+      actions,
+      t.btnApproveDeletes(this.approved.size),
+      t.tipApproveDeletes,
+      !this.busy && this.approved.size > 0,
+      () => this.approveDeletes()
+    );
   }
 
   /**
-   * 未整理は、新規アップロードが止まっている理由そのものなので、件数だけでなく
-   * 台帳への入口も出す。分類はここでもファイルでもできる（ADR-0006）。
+   * 未整理のローカル固有ファイル。これが、そのファイルのアップロードが止まって
+   * いる理由そのものなので、行ごとにその場で決められるようにする（ADR-0006）。
    */
   private renderUnsorted(root: HTMLElement, plan: SyncPlan): void {
     if (plan.unsorted.length === 0) return;
-    root.createEl("h4", { text: `${t.panelUnsorted}（${plan.unsorted.length}）` });
+    root.createEl("h4", { text: t.panelUnsorted(plan.unsorted.length) });
     root.createDiv({ cls: "gds-panel-note", text: t.panelLocalOnlyDesc });
 
     const list = root.createDiv({ cls: "gds-panel-list" });
-    for (const path of plan.unsorted.slice(0, MAX_ROWS)) list.createDiv({ cls: "gds-panel-row", text: path });
+    for (const path of plan.unsorted.slice(0, MAX_ROWS)) {
+      const row = list.createDiv({ cls: "gds-panel-row" });
+      row.createSpan({ text: path, cls: "gds-panel-path" });
+      const buttons = row.createDiv({ cls: "gds-panel-rowactions" });
+      this.action(buttons, t.btnShare, t.tipShare, !this.busy, () => this.share([path]));
+      this.action(buttons, t.btnTrash, t.tipTrash, !this.busy, () => this.trash([path]));
+    }
     if (plan.unsorted.length > MAX_ROWS) {
       list.createDiv({ cls: "gds-panel-note", text: t.panelMore(plan.unsorted.length - MAX_ROWS) });
     }
 
-    new Setting(root).addButton((b) =>
-      b
-        .setButtonText(t.btnOpenLocalOnly)
-        .setDisabled(this.busy)
-        .onClick(() => void this.plugin.openLocalOnly())
-    );
+    const all = [...plan.unsorted];
+    const actions = root.createDiv({ cls: "gds-panel-actions" });
+    this.action(actions, t.btnShareAll(all.length), t.tipShareAll, !this.busy, () => this.share(all));
+    this.action(actions, t.btnTrashAll(all.length), t.tipTrashAll, !this.busy, () => this.confirmTrashAll(all));
   }
 
   private renderCounts(root: HTMLElement, plan: SyncPlan): void {
@@ -220,10 +238,12 @@ export class SyncPanelView extends ItemView {
       return;
     }
     root.createEl("h4", { text: t.panelChanges });
-    const list = root.createDiv({ cls: "gds-panel-list" });
+    // 数百件を全部開いたままにすると、肝心の件数まで辿り着けない。
     for (const [label, paths] of rows) {
       if (paths.length === 0) continue;
-      list.createDiv({ cls: "gds-panel-row", text: `${label}: ${paths.length}` });
+      const box = root.createEl("details", { cls: "gds-panel-group" });
+      box.createEl("summary", { text: `${label}: ${paths.length}` });
+      const list = box.createDiv({ cls: "gds-panel-list" });
       for (const path of paths.slice(0, MAX_ROWS)) list.createDiv({ cls: "gds-panel-note", text: path });
       if (paths.length > MAX_ROWS) list.createDiv({ cls: "gds-panel-note", text: t.panelMore(paths.length - MAX_ROWS) });
     }
@@ -259,12 +279,29 @@ export class SyncPanelView extends ItemView {
     });
   }
 
-  private runOrganize(): void {
+  private share(paths: string[]): void {
     void this.withBusy(async () => {
-      const result = await this.plugin.controller.organizeLocalFiles();
-      new Notice(t.notice(t.organizeDone(result.shared.length, result.trashed.length)), NOTICE_MS);
+      await this.plugin.controller.shareLocalFiles(paths);
+      new Notice(t.notice(t.sharedDone(paths.length)), NOTICE_MS);
+    });
+  }
+
+  private trash(paths: string[]): void {
+    void this.withBusy(async () => {
+      const result = await this.plugin.controller.trashLocalFiles(paths);
+      new Notice(t.notice(t.trashedDone(result.trashed.length)), NOTICE_MS);
       for (const error of result.errors) new Notice(t.notice(error), NOTICE_MS);
     });
+  }
+
+  /** 一括削除だけは、件数を読ませてから実行する。 */
+  private confirmTrashAll(paths: string[]): void {
+    new ConfirmModal(this.app, {
+      title: t.confirmTrashTitle,
+      body: t.confirmTrashBody(paths.length),
+      confirm: t.btnTrashAll(paths.length),
+      onConfirm: () => this.trash(paths),
+    }).open();
   }
 
   private approveDeletes(): void {

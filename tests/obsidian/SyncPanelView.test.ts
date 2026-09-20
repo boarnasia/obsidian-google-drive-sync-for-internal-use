@@ -24,27 +24,30 @@ const plan = (over: Partial<SyncPlan> = {}): SyncPlan => ({
 /** ビューが触るぶんだけのプラグイン。 */
 function fakePlugin(over: { plan?: SyncPlan; ready?: boolean; connected?: boolean } = {}) {
   return {
-    settings: { lastSyncAt: null },
+    settings: { lastSyncAt: null, autoSync: true },
     controller: {
       connected: over.connected ?? true,
       ready: over.ready ?? true,
       plan: vi.fn(async () => over.plan ?? plan()),
       clone: vi.fn(async () => emptyReport()),
-      organizeLocalFiles: vi.fn(async () => ({ shared: [] as string[], trashed: [] as string[], errors: [] as string[] })),
+      shareLocalFiles: vi.fn(async (_paths: readonly string[]) => emptyReport()),
+      trashLocalFiles: vi.fn(async (paths: readonly string[]) => ({ trashed: [...paths], errors: [] as string[] })),
     },
     runSync: vi.fn(async (_opts?: { approvedDeletes?: ReadonlySet<string> }) => undefined),
-    openLocalOnly: vi.fn(async () => undefined),
+    setAutoSync: vi.fn(async (_on: boolean) => undefined),
   };
 }
 
 /** テストが触る面。private をまたぐので、交差型ではなく構造で受ける。 */
 interface Panel {
   refresh(): Promise<void>;
-  runOrganize(): void;
   plan: SyncPlan | null;
   approved: Set<string>;
+  confirmTrashAll(paths: string[]): void;
   runClone(): void;
   approveDeletes(): void;
+  share(paths: string[]): void;
+  trash(paths: string[]): void;
 }
 
 const panelOf = (plugin: ReturnType<typeof fakePlugin>): Panel =>
@@ -124,15 +127,35 @@ describe("削除の承認", () => {
   });
 });
 
-describe("ローカルファイルの整理", () => {
-  it("整理してから差分を数え直す", async () => {
-    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md"], unsorted: [] }) });
+describe("ローカル固有ファイルの分類", () => {
+  it("「共有」は選んだパスだけを渡し、差分を数え直す", async () => {
+    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md", "b.md"], unsorted: ["a.md", "b.md"] }) });
     const panel = panelOf(plugin);
     await panel.refresh();
 
-    panel.runOrganize();
-    await vi.waitFor(() => expect(plugin.controller.organizeLocalFiles).toHaveBeenCalled());
+    panel.share(["a.md"]);
+    await vi.waitFor(() => expect(plugin.controller.shareLocalFiles).toHaveBeenCalledWith(["a.md"]));
     await vi.waitFor(() => expect(plugin.controller.plan).toHaveBeenCalledTimes(2));
+  });
+
+  it("「削除」はローカルだけを消し、同期を走らせない", async () => {
+    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md"], unsorted: ["a.md"] }) });
+    const panel = panelOf(plugin);
+    await panel.refresh();
+
+    panel.trash(["a.md"]);
+    await vi.waitFor(() => expect(plugin.controller.trashLocalFiles).toHaveBeenCalledWith(["a.md"]));
+    expect(plugin.runSync).not.toHaveBeenCalled();
+  });
+
+  it("一括削除は、確認を挟むまで何も消さない", async () => {
+    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md"], unsorted: ["a.md"] }) });
+    const panel = panelOf(plugin);
+    await panel.refresh();
+
+    panel.confirmTrashAll(["a.md"]);
+
+    expect(plugin.controller.trashLocalFiles).not.toHaveBeenCalled();
   });
 });
 

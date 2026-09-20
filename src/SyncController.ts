@@ -14,14 +14,12 @@ import { DriveTarget, Settings } from "./settings";
 import { ignoreMatcher } from "./sync/ignore";
 import {
   LOCAL_IGNORE_PATH,
-  LOCAL_ONLY_PATH,
   TEAM_IGNORE_PATH,
   TEAM_IGNORE_TEMPLATE,
   TEAM_README_PATH,
   TEAM_README_TEMPLATE,
   localIgnoreTemplate,
 } from "./sync/configFiles";
-import { LocalOnlyLabels, parseLocalOnly, reconcileLocalOnly, renderLocalOnly } from "./sync/localOnly";
 import { t } from "./i18n";
 
 /**
@@ -30,14 +28,6 @@ import { t } from "./i18n";
  * フォルダにあっても他人のファイルは存在しないものとして扱われる（ADR-0004）。
  */
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
-
-/** 台帳と設定ファイルの見出しは、各自の UI 言語で書く（配られないため）。 */
-function localOnlyLabels(): LocalOnlyLabels {
-  return {
-    heading: { unsorted: t.sectionUnsorted, shared: t.sectionShared, trash: t.sectionTrash },
-    intro: t.localOnlyIntro,
-  };
-}
 
 function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
   return local.write(path, new TextEncoder().encode(body).buffer);
@@ -161,6 +151,8 @@ export class SyncController {
 
     const key = target.folderId;
     const { state, report } = await (await this.engineFor(target)).sync(this.settings.syncState[key] ?? {}, opts);
+    // 上がった、あるいは消えたファイルは、もう分類の対象ではない。
+    this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => report.localOnly.includes(path));
     await this.commit(key, state, freshToken);
     return report;
   }
@@ -177,25 +169,13 @@ export class SyncController {
 
     const key = target.folderId;
     const { state, report } = await (await this.engineFor(target)).clone(this.settings.syncState[key] ?? {});
+    // 取り込みは両側を数え直すので、未整理も持ち越さずに作り直す。
+    this.settings.unsorted[key] = [...report.localOnly];
     await this.commit(key, state, freshToken);
-    await this.writeLocalLedger(report.localOnly);
+    // 設定ファイルは clone の後に、無いものだけ作る。前に作ると、自分で作ったファイルが
+    // 自分のローカル固有ファイルとして並ぶ。
+    await this.ensureConfigFiles(this.store());
     return report;
-  }
-
-  /**
-   * clone の結果をローカル側の台帳に反映する（ADR-0006）。
-   *
-   * 設定ファイルは clone の後に、無いものだけ作る。有効化しただけの Vault には
-   * 何も書かない。clone の前に作ると、自分で作ったファイルが自分のローカル固有
-   * ファイルとして並ぶ。
-   */
-  private async writeLocalLedger(localOnly: readonly string[]): Promise<void> {
-    const local = this.store();
-    await this.ensureConfigFiles(local);
-
-    const previous = await local.readText(LOCAL_ONLY_PATH);
-    const doc = reconcileLocalOnly(parseLocalOnly(previous ?? ""), localOnly);
-    await writeText(local, LOCAL_ONLY_PATH, renderLocalOnly(doc, localOnlyLabels(), previous ?? undefined));
   }
 
   private async ensureConfigFiles(local: ObsidianLocalStore): Promise<void> {
@@ -209,18 +189,44 @@ export class SyncController {
     }
   }
 
-  /**
-   * 分類の実行（ADR-0006）。「共有」はアップロードし、「削除」はローカルのゴミ箱へ送る。
-   * 「未整理」は何もしない。実行した行は台帳から消える。
-   */
-  async organizeLocalFiles(): Promise<{ shared: string[]; trashed: string[]; errors: string[] }> {
-    this.requireTarget(); // 同期先が無いうちは整理もできない（共有先が決まらない）
-    const local = this.store();
-    const previous = (await local.readText(LOCAL_ONLY_PATH)) ?? "";
-    const doc = parseLocalOnly(previous);
-    const result = { shared: [] as string[], trashed: [] as string[], errors: [] as string[] };
+  // -------------------------------------------------- ローカル固有ファイルの分類
 
-    for (const path of doc.entries.trash) {
+  /** 未整理として保留中のパス。同期先ごとに持つ。 */
+  unsortedFor(): string[] {
+    const target = this.settings.target;
+    return target ? this.unsortedOf(target.folderId) : [];
+  }
+
+  private unsortedOf(key: string): string[] {
+    return this.settings.unsorted[key] ?? [];
+  }
+
+  private async dropUnsorted(key: string, paths: readonly string[]): Promise<void> {
+    const gone = new Set(paths);
+    this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => !gone.has(path));
+    await this.persist();
+  }
+
+  /**
+   * 「共有」（ADR-0006）。保留を外して同期する。外れたファイルは、この同期で
+   * 普通の新規ファイルとして上がる。
+   */
+  async shareLocalFiles(paths: readonly string[]): Promise<SyncReport> {
+    const target = this.requireTarget();
+    await this.dropUnsorted(target.folderId, paths);
+    return this.sync();
+  }
+
+  /**
+   * 「削除」（ADR-0006）。ローカルのゴミ箱へ送る。リモートには触らない——そもそも
+   * リモートに無いファイルだけがここに来る。
+   */
+  async trashLocalFiles(paths: readonly string[]): Promise<{ trashed: string[]; errors: string[] }> {
+    const target = this.requireTarget();
+    const local = this.store();
+    const result = { trashed: [] as string[], errors: [] as string[] };
+
+    for (const path of paths) {
       try {
         await local.delete(path);
         result.trashed.push(path);
@@ -228,14 +234,7 @@ export class SyncController {
         result.errors.push(`${path}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    // 「共有」はここでは消し込むだけ。台帳から外れれば、次の同期で普通に上がる。
-    result.shared.push(...doc.entries.shared);
-
-    const remaining = reconcileLocalOnly(doc, doc.entries.unsorted);
-    await writeText(local, LOCAL_ONLY_PATH, renderLocalOnly(remaining, localOnlyLabels(), previous));
-
-    // 台帳から外れた「共有」は、この同期で普通の新規ファイルとして上がる。
-    if (result.shared.length > 0) await this.sync();
+    await this.dropUnsorted(target.folderId, result.trashed);
     return result;
   }
 
@@ -251,13 +250,9 @@ export class SyncController {
 
   private async engineFor(target: DriveTarget): Promise<SyncEngine> {
     const local = this.store();
-    const [team, mine, localOnly] = await Promise.all([
-      local.readText(TEAM_IGNORE_PATH),
-      local.readText(LOCAL_IGNORE_PATH),
-      local.readText(LOCAL_ONLY_PATH),
-    ]);
-    // 未整理のものだけを止める。分類済み（共有・削除）は整理の対象で、止めない。
-    const held = new Set(localOnly ? parseLocalOnly(localOnly).entries.unsorted : []);
+    const [team, mine] = await Promise.all([local.readText(TEAM_IGNORE_PATH), local.readText(LOCAL_IGNORE_PATH)]);
+    // 未整理のものだけを止める。分類し終えたファイルは、もうこの集合に居ない。
+    const held = new Set(this.unsortedOf(target.folderId));
     return new SyncEngine(
       local,
       new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http),
