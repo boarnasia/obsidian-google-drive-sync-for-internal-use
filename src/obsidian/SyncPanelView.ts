@@ -139,15 +139,35 @@ export class SyncPanelView extends ItemView {
     this.action(row, t.btnClone, t.tipClone, !this.busy, () => this.runClone());
     this.action(row, t.btnRefresh, t.tipRefresh, !this.busy, () => void this.refresh());
 
-    const paused = !this.plugin.settings.autoSync;
+    this.renderSyncSettings(root);
+  }
+
+  /**
+   * 同期の設定。設定画面には置かない（同じものが二か所にあると、どちらが効くのか
+   * 分からなくなる）。止めていても「今すぐ同期」は押せる。
+   */
+  private renderSyncSettings(root: HTMLElement): void {
+    const s = this.plugin.settings;
     new Setting(root)
-      .setName(t.panelPause)
-      .setDesc(paused ? t.panelPausedDesc : t.panelPauseDesc)
+      .setName(t.autoSyncName)
+      .setDesc(t.autoSyncDesc)
       .addToggle((toggle) =>
-        toggle.setValue(paused).onChange((v) => {
-          void this.plugin.setAutoSync(!v).then(() => this.render());
+        toggle.setValue(s.autoSync).onChange((v) => {
+          void this.plugin.setAutoSync(v);
         })
       );
+
+    if (!s.autoSync) return;
+    new Setting(root)
+      .setName(t.pollName)
+      .setDesc(t.pollDesc)
+      .addText((text) => {
+        text.inputEl.type = "number";
+        text.inputEl.min = "1";
+        text.setValue(String(s.pollMinutes)).onChange((v) => {
+          void this.plugin.setPollMinutes(Number(v));
+        });
+      });
   }
 
   private action(

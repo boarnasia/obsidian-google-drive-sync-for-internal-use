@@ -83,6 +83,7 @@ export const fr: Strings = {
     "Minutes entre deux vérifications des changements des autres. Sans changement, une vérification n’est qu’une requête légère.",
   pollUnit: "min",
   pollInvalid: "Saisissez un nombre entier de minutes, 1 ou plus.",
+  syncMovedDesc: "Les actions et les réglages de synchronisation se trouvent dans le gestionnaire, dans la barre latérale droite.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "Gestion de la synchronisation",
@@ -104,9 +105,6 @@ export const fr: Strings = {
   tipSyncNow: "Envoie vos modifications vers Drive et récupère ici celles des autres.",
   tipClone: "Récupère ici la copie de Drive. Rien n’est supprimé en local ; les fichiers absents de Drive sont listés ci-dessous.",
   tipRefresh: "Recompte les différences. Rien n’est envoyé, téléchargé ni supprimé.",
-  panelPause: "Mettre la synchronisation en pause",
-  panelPauseDesc: "La synchronisation se fait toute seule. En pause, elle ne se fait plus seule ; « Synchroniser maintenant » fonctionne toujours.",
-  panelPausedDesc: "En pause : plus rien ne se synchronise tout seul. « Synchroniser maintenant » fonctionne toujours.",
   panelLastSynced: (rel) => `Dernière synchronisation : ${rel}`,
   panelCheckedAt: (rel) => `Vérifié : ${rel}`,
   panelHeldDeletes: (n) => `Suppressions en attente (${n})`,

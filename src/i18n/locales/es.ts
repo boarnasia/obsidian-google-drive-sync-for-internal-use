@@ -83,6 +83,7 @@ export const es: Strings = {
     "Minutos entre comprobaciones de los cambios de los demás. Si no hay cambios, cada comprobación es una única solicitud ligera.",
   pollUnit: "minutos",
   pollInvalid: "Introduce un número entero de minutos, 1 o más.",
+  syncMovedDesc: "Las acciones y los ajustes de sincronización están en el gestor de sincronización, en la barra lateral derecha.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "Gestor de sincronización",
@@ -104,9 +105,6 @@ export const es: Strings = {
   tipSyncNow: "Envía tus cambios a Drive y trae aquí los de los demás.",
   tipClone: "Trae aquí la copia de Drive. No borra nada local; los archivos que Drive no tiene aparecen abajo.",
   tipRefresh: "Vuelve a contar las diferencias. No sube, no baja y no borra nada.",
-  panelPause: "Pausar la sincronización",
-  panelPauseDesc: "La sincronización va sola. Al pausarla deja de ir sola; «Sincronizar ahora» sigue funcionando.",
-  panelPausedDesc: "En pausa: nada se sincroniza solo. «Sincronizar ahora» sigue funcionando.",
   panelLastSynced: (rel) => `Última sincronización: ${rel}`,
   panelCheckedAt: (rel) => `Comprobado: ${rel}`,
   panelHeldDeletes: (n) => `Eliminaciones en espera (${n})`,

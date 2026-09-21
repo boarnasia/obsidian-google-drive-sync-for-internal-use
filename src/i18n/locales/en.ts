@@ -84,6 +84,7 @@ export const en = {
     "Minutes between checks for other people's changes. A check is a single cheap request when nothing has changed.",
   pollUnit: "minutes",
   pollInvalid: "Enter a whole number of minutes, 1 or more.",
+  syncMovedDesc: "The sync controls and settings live in the sync manager, in the right sidebar.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "Sync manager",
@@ -105,9 +106,6 @@ export const en = {
   tipSyncNow: "Send your changes to Drive and bring other people's changes here.",
   tipClone: "Bring the Drive copy here. Nothing local is deleted; files Drive does not have are listed below.",
   tipRefresh: "Count the differences again. Nothing is uploaded, downloaded or deleted.",
-  panelPause: "Pause syncing",
-  panelPauseDesc: 'Syncing runs on its own. Pause it to stop that; "Sync now" still works.',
-  panelPausedDesc: 'Paused: nothing syncs on its own. "Sync now" still works.',
   panelLastSynced: (rel: string): string => `Last synced: ${rel}`,
   panelCheckedAt: (rel: string): string => `Checked: ${rel}`,
   panelHeldDeletes: (n: number): string => `Deletions on hold (${n})`,

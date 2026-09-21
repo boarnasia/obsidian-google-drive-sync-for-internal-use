@@ -82,6 +82,7 @@ export const ja: Strings = {
   pollDesc: "他の人の変更を確認しに行く間隔（分）。変更が無ければ 1 リクエストで終わるため、短くしても負荷は軽微です。",
   pollUnit: "分",
   pollInvalid: "1 以上の整数（分）を入力してください。",
+  syncMovedDesc: "同期の操作と設定は、右サイドバーの同期管理にあります。",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "同期管理",
@@ -103,9 +104,6 @@ export const ja: Strings = {
   tipSyncNow: "自分の変更を Drive に送り、他の人の変更をここに取り込みます。",
   tipClone: "Drive の内容をここに再現します。ローカルのファイルは消しません。Drive に無いファイルは下に並びます。",
   tipRefresh: "差分を数え直すだけです。アップロードもダウンロードも削除もしません。",
-  panelPause: "同期を一時停止",
-  panelPauseDesc: "同期は自分で走ります。止めるとそれをしません。「今すぐ同期」は使えます。",
-  panelPausedDesc: "停止中です。同期は自分で走りません。「今すぐ同期」は使えます。",
   panelLastSynced: (rel) => `最終同期: ${rel}`,
   panelCheckedAt: (rel) => `確認: ${rel}`,
   panelHeldDeletes: (n) => `保留中の削除（${n} 件）`,

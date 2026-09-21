@@ -31,6 +31,7 @@ interface Tab {
 interface Registered {
   _commands: { id: string }[];
   _ribbons: unknown[];
+  _views: { type: string }[];
   _settingTabs: Tab[];
   saveData(d: unknown): Promise<void>;
 }
@@ -78,7 +79,10 @@ describe("起動", () => {
     const { plugin } = await loadPlugin();
 
     expect(plugin._commands.some((c) => c.id === "sync-now")).toBe(true);
-    expect(plugin._ribbons).toHaveLength(1);
+    expect(plugin._commands.some((c) => c.id === "open-sync-panel")).toBe(true);
+    // 同期の操作は同期管理にしかないので、リボンを挟まず最初から右サイドバーに出す。
+    expect(plugin._ribbons).toHaveLength(0);
+    expect(plugin._views.some((v) => v.type === "google-drive-sync-panel")).toBe(true);
     expect(plugin._settingTabs).toHaveLength(1);
   });
 
@@ -123,6 +127,17 @@ describe("設定画面", () => {
     expect(names).toContain(t.languageName);
   });
 
+  it("同期の操作と設定は置かず、同期管理への入口だけを残す", async () => {
+    // 同じ設定が二か所にあると、どちらが効くのかが利用者にも分からなくなる。
+    const { tab } = await loadPlugin();
+    const items = flatten(tab.getSettingDefinitions());
+    const names = items.map((i) => i.name);
+
+    expect(names).not.toContain(t.autoSyncName);
+    expect(names).not.toContain(t.pollName);
+    expect(names).toContain(t.panelOpen);
+  });
+
   it.each([
     ["E2EE", /passphrase|パスフレーズ|encrypt|暗号化/i],
     ["バケットや HMAC", /bucket|hmac|バケット/i],
@@ -152,19 +167,22 @@ describe("設定の読み書き", () => {
     expect(plugin.settings.mountFolder).toBe("仕事");
   });
 
-  it("トグルは真偽値として入る", async () => {
-    const { plugin, tab } = await loadPlugin();
-    await tab.setControlValue("autoSync", false);
+  it("自動同期の入切はサイドバーから入る", async () => {
+    const { plugin } = await loadPlugin();
+    await plugin.setAutoSync(false);
 
     expect(plugin.settings.autoSync).toBe(false);
   });
 
-  it("数値は整数として入り、0 以下は無視して前の値を保つ", async () => {
-    const { plugin, tab } = await loadPlugin();
-    await tab.setControlValue("pollMinutes", 5);
+  it("間隔は整数として入り、1 未満は無視して前の値を保つ", async () => {
+    const { plugin } = await loadPlugin();
+    await plugin.setPollMinutes(5);
     expect(plugin.settings.pollMinutes).toBe(5);
 
-    await tab.setControlValue("pollMinutes", 0);
+    await plugin.setPollMinutes(0);
+    expect(plugin.settings.pollMinutes).toBe(5);
+
+    await plugin.setPollMinutes(Number("これは数ではない"));
     expect(plugin.settings.pollMinutes).toBe(5);
   });
 

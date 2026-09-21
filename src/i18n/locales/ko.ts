@@ -82,6 +82,7 @@ export const ko: Strings = {
   pollDesc: "다른 사람의 변경 사항을 확인하는 간격(분)입니다. 변경이 없으면 가벼운 요청 한 번으로 끝납니다.",
   pollUnit: "분",
   pollInvalid: "1 이상의 정수(분)를 입력하세요.",
+  syncMovedDesc: "동기화 조작과 설정은 오른쪽 사이드바의 동기화 관리에 있습니다.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "동기화 관리",
@@ -103,9 +104,6 @@ export const ko: Strings = {
   tipSyncNow: "내 변경 사항을 Drive로 보내고, 다른 사람의 변경 사항을 여기로 가져옵니다.",
   tipClone: "Drive의 내용을 여기에 재현합니다. 로컬 파일은 지우지 않습니다. Drive에 없는 파일은 아래에 나열됩니다.",
   tipRefresh: "차이를 다시 셉니다. 업로드도 다운로드도 삭제도 하지 않습니다.",
-  panelPause: "동기화 일시 중지",
-  panelPauseDesc: "동기화는 스스로 돌아갑니다. 중지하면 스스로 돌지 않습니다. '지금 동기화'는 그대로 씁니다.",
-  panelPausedDesc: "중지됨: 스스로 동기화하지 않습니다. '지금 동기화'는 그대로 씁니다.",
   panelLastSynced: (rel) => `마지막 동기화: ${rel}`,
   panelCheckedAt: (rel) => `확인: ${rel}`,
   panelHeldDeletes: (n) => `보류된 삭제 (${n}건)`,

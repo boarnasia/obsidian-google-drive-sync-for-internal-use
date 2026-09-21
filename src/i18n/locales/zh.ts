@@ -78,6 +78,7 @@ export const zh: Strings = {
   pollDesc: "检查其他人更改的间隔（分钟）。没有更改时，每次检查只需一个轻量请求。",
   pollUnit: "分钟",
   pollInvalid: "请输入 1 或更大的整数（分钟）。",
+  syncMovedDesc: "同步的操作和设置都在右侧边栏的同步管理里。",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "同步管理",
@@ -97,9 +98,6 @@ export const zh: Strings = {
   tipSyncNow: "把你的更改发送到 Drive，并把别人的更改取到这里。",
   tipClone: "把 Drive 的内容在这里重现。不删除任何本地文件。Drive 没有的文件会列在下面。",
   tipRefresh: "只重新统计差异。不上传、不下载、不删除。",
-  panelPause: "暂停同步",
-  panelPauseDesc: "同步会自行运行。暂停后不再自行运行，“立即同步”仍可使用。",
-  panelPausedDesc: "已暂停：不会自行同步。“立即同步”仍可使用。",
   panelLastSynced: (rel) => `上次同步：${rel}`,
   panelCheckedAt: (rel) => `检查时间：${rel}`,
   panelHeldDeletes: (n) => `暂缓的删除（${n} 项）`,

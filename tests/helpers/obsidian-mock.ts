@@ -19,6 +19,7 @@ export class App {
     getActiveFile: () => null,
     getLeavesOfType: (_type: string): unknown[] => [],
     getRightLeaf: (_split: boolean): unknown => null,
+    onLayoutReady: (cb: () => void): void => cb(),
     revealLeaf: (_leaf: unknown): void => {},
   };
 }
