@@ -1,6 +1,6 @@
 {
   "name": "obsidian-google-drive-sync-for-internal-use",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "Collaborate with your team via Google Workspace shared drives within your company.",
   "main": "main.js",
   "scripts": {
