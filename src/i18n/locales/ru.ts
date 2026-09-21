@@ -11,8 +11,8 @@ function plural(n: number, one: string, few: string, many: string): string {
 
 export const ru: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: синхронизировать сейчас",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: синхронизировать сейчас",
   cmdSyncNow: "Синхронизировать сейчас",
   syncAlreadyRunning: "синхронизация уже выполняется…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,

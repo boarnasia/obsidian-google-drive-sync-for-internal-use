@@ -3,8 +3,8 @@ import { RelativeTimeWords } from "../../util/time";
 /** 唯一の真実。`Strings` はここから導出するので、他の辞書の漏れはビルドエラーになる。 */
 export const en = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg: string): string => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: sync now",
+  notice: (msg: string): string => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: sync now",
   cmdSyncNow: "Sync now",
   syncAlreadyRunning: "a sync is already running…",
   syncSummary: (up: number, down: number, del: number, conflicts: number): string =>

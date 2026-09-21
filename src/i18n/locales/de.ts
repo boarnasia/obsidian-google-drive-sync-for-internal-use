@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const de: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: jetzt synchronisieren",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: jetzt synchronisieren",
   cmdSyncNow: "Jetzt synchronisieren",
   syncAlreadyRunning: "es läuft bereits eine Synchronisierung…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,

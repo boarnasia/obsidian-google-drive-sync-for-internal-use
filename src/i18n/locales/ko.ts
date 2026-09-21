@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const ko: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: 지금 동기화",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: 지금 동기화",
   cmdSyncNow: "지금 동기화",
   syncAlreadyRunning: "이미 동기화가 진행 중입니다…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,

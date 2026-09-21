@@ -1,4 +1,4 @@
-# Google Drive Sync (Internal Use)
+# Team Drive Sync
 
 社内の Google Workspace 共有ドライブを介して、一つの Obsidian Vault をチームで共同利用するためのプラグイン。同期先は利用者自身の Google Drive であり、第三者のサーバーを一切経由しない。
 

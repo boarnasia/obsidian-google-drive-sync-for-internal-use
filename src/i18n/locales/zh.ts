@@ -3,8 +3,8 @@ import type { Strings } from "./en";
 /** 中文（简体，中国大陆）。 */
 export const zh: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync：立即同步",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync：立即同步",
   cmdSyncNow: "立即同步",
   syncAlreadyRunning: "同步已在进行中…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,

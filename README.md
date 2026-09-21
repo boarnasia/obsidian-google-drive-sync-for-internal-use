@@ -1,4 +1,6 @@
-# Google Drive Sync (Internal Use)
+# Team Drive Sync
+
+> 私の個人用途向けのツールです。公式のコミュニティプラグインとしては公開しておらず、他の環境での動作やサポートは約束しません。
 
 社内の Google Workspace 共有ドライブを介して、一つの Obsidian Vault をチームで共同利用するためのプラグインです。同期先は自社が所有するドライブだけで、第三者のサーバーを一切経由しません。
 
@@ -34,7 +36,7 @@
 
 1. コミュニティプラグインから **BRAT** をインストールして有効化
 2. コマンドパレット → `BRAT: Add a beta plugin for testing`
-3. `boarnasia/obsidian-google-drive-sync-for-internal-use` を入力
+3. `boarnasia/team-drive-sync` を入力
 
 以後は BRAT が自動で最新版に更新します。全員が同じバージョンで動くことは、同期の不具合を避けるうえで重要です。
 
@@ -51,7 +53,7 @@
 
 ### 2. 各メンバーの設定
 
-1. 設定 → Google Drive Sync (Internal Use)
+1. 設定 → Team Drive Sync
 2. **クライアント ID** と **クライアント シークレット** を貼り付け
 3. **同期先のフォルダ URL** に、共有ドライブのフォルダの URL を貼り付け
    （例: `https://drive.google.com/drive/folders/15hq…`）

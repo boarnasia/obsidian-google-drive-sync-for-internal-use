@@ -3,8 +3,8 @@ import type { Strings } from "./en";
 /** Português (Brasil). */
 export const ptBR: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: sincronizar agora",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: sincronizar agora",
   cmdSyncNow: "Sincronizar agora",
   syncAlreadyRunning: "já há uma sincronização em andamento…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,

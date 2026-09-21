@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const kn: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: ಈಗ ಸಿಂಕ್ ಮಾಡಿ",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: ಈಗ ಸಿಂಕ್ ಮಾಡಿ",
   cmdSyncNow: "ಈಗ ಸಿಂಕ್ ಮಾಡಿ",
   syncAlreadyRunning: "ಸಿಂಕ್ ಈಗಾಗಲೇ ನಡೆಯುತ್ತಿದೆ…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,

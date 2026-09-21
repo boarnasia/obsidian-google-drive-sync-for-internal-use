@@ -1,6 +1,6 @@
 {
   "id": "google-drive-sync-for-internal-use",
-  "name": "Google Drive Sync (Internal Use)",
+  "name": "Team Drive Sync",
   "version": "0.5.2",
   "minAppVersion": "1.13.0",
   "description": "Collaborate with your team via Google Workspace shared drives within your company.",
