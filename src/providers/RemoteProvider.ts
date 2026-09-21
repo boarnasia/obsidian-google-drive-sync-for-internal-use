@@ -1,12 +1,12 @@
 /** A remote object the provider can store. `path` is sync-root-relative (POSIX). */
 export interface RemoteObject {
   path: string;
-  /** Opaque version (GCS generation / ETag) for change detection. */
+  /** Opaque version (Drive `md5Checksum`) for change detection. */
   version: string;
   size: number;
   /**
    * Last-modified time in epoch ms — the remote's own upload/modify time
-   * (Drive `modifiedTime`, GCS `Last-Modified`). Used ONLY to pick the newer
+   * (Drive `modifiedTime`). Used ONLY to pick the newer
    * side in a modify/modify conflict; never for change detection. Optional:
    * absent ⇒ treated as the oldest possible time (the other side wins).
    */
@@ -26,9 +26,8 @@ export interface HttpResponse {
 }
 
 /**
- * Transport seam (DIP). Obsidian wires `requestUrl` — it bypasses CORS and lets
- * us send the `Host` + `Authorization` headers SigV4 requires (browser `fetch`
- * cannot). The Node pilot wires its own fetch/https adapter.
+ * Transport seam (DIP). The plugin wires Obsidian's `requestUrl`, which is not
+ * subject to CORS as browser `fetch` is; tests wire in-memory fakes.
  */
 export type HttpSend = (
   method: string,

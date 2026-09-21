@@ -155,8 +155,23 @@ describe("refreshAccessToken", () => {
     expect(tokens.refreshToken).toBe("rt-2");
   });
 
-  it("失効したトークンは例外にする", async () => {
-    const { http } = recorder("invalid_grant", 401);
-    await expect(refreshAccessToken(http, { clientId: "cid", refreshToken: "rt-1" }, NOW)).rejects.toThrow(/401/);
+  it("シークレットが無ければ client_secret を送らない", async () => {
+    const { http, sent } = recorder(JSON.stringify({ access_token: "at-2" }));
+    await refreshAccessToken(http, { clientId: "cid", refreshToken: "rt-1" }, NOW);
+
+    expect(sent[0].form.has("client_secret")).toBe(false);
+  });
+
+  it("シークレットがあれば送る（Desktop クライアントは更新でも要求する）", async () => {
+    const { http, sent } = recorder(JSON.stringify({ access_token: "at-2" }));
+    await refreshAccessToken(http, { clientId: "cid", clientSecret: "sec", refreshToken: "rt-1" }, NOW);
+
+    expect(sent[0].form.get("client_secret")).toBe("sec");
+  });
+
+  it("失効・取り消し済みのトークンは例外にする", async () => {
+    // トークンエンドポイントは invalid_grant を 400 で返す（RFC 6749 §5.2）。
+    const { http } = recorder(JSON.stringify({ error: "invalid_grant" }), 400);
+    await expect(refreshAccessToken(http, { clientId: "cid", refreshToken: "rt-1" }, NOW)).rejects.toThrow(/400/);
   });
 });
