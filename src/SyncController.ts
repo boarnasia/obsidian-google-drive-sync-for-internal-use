@@ -40,6 +40,15 @@ function writeText(local: ObsidianLocalStore, path: string, body: string): Promi
 export class SyncController {
   private access: { token: string; expiresAt: number } | null = null;
   private readonly http: HttpSend;
+  /**
+   * ベースラインを書き換える操作が同時に走っていないか。
+   *
+   * sync・clone・分類はどれも最後に同じ `syncState[folderId]` を上書きする。二つが
+   * 重なると、後から終わった方が先の結果を丸ごと捨て、ベースラインが実際の両側と
+   * 食い違う——次の同期はそれを大量削除として読む。呼び出し元はサイドバー・
+   * ポーリング・ファイル監視と複数あるので、入口ではなくここで一本化する。
+   */
+  private running = false;
 
   constructor(
     private readonly app: App,
@@ -67,6 +76,17 @@ export class SyncController {
 
   private requireOAuthClient(): void {
     if (!this.hasOAuthClient) throw new Error(t.errNoOauthClient);
+  }
+
+  /** ベースラインを書き換える操作はここを通す。重なったら待たせずに断る。 */
+  private async exclusive<T>(run: () => Promise<T>): Promise<T> {
+    if (this.running) throw new Error(t.syncAlreadyRunning);
+    this.running = true;
+    try {
+      return await run();
+    } finally {
+      this.running = false;
+    }
   }
 
   private requireTarget(): DriveTarget {
@@ -143,7 +163,11 @@ export class SyncController {
   }
 
   /** 手動、およびローカルの変更を起点とする同期。必ず走る。 */
-  async sync(opts: { approvedDeletes?: ReadonlySet<string> } = {}): Promise<SyncReport> {
+  sync(opts: { approvedDeletes?: ReadonlySet<string> } = {}): Promise<SyncReport> {
+    return this.exclusive(() => this.syncNow(opts));
+  }
+
+  private async syncNow(opts: { approvedDeletes?: ReadonlySet<string> }): Promise<SyncReport> {
     const target = this.requireTarget();
 
     // 起点は走査の *前* に取る。後から取ると、走査中に入った変更を見落とす。
@@ -152,7 +176,8 @@ export class SyncController {
     const key = target.folderId;
     const { state, report } = await (await this.engineFor(target)).sync(this.settings.syncState[key] ?? {}, opts);
     // 上がった、あるいは消えたファイルは、もう分類の対象ではない。
-    this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => report.localOnly.includes(path));
+    const stillLocalOnly = new Set(report.localOnly);
+    this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => stillLocalOnly.has(path));
     await this.commit(key, state, freshToken);
     return report;
   }
@@ -163,7 +188,11 @@ export class SyncController {
    * 初回接続と、状態が壊れたときの復旧の両方がここを通る。ローカルにしか無い
    * ファイルは消さず、報告に載せて呼び出し側が分類できるようにする。
    */
-  async clone(): Promise<SyncReport> {
+  clone(): Promise<SyncReport> {
+    return this.exclusive(() => this.cloneNow());
+  }
+
+  private async cloneNow(): Promise<SyncReport> {
     const target = this.requireTarget();
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
@@ -211,31 +240,35 @@ export class SyncController {
    * 「共有」（ADR-0006）。保留を外して同期する。外れたファイルは、この同期で
    * 普通の新規ファイルとして上がる。
    */
-  async shareLocalFiles(paths: readonly string[]): Promise<SyncReport> {
-    const target = this.requireTarget();
-    await this.dropUnsorted(target.folderId, paths);
-    return this.sync();
+  shareLocalFiles(paths: readonly string[]): Promise<SyncReport> {
+    return this.exclusive(async () => {
+      const target = this.requireTarget();
+      await this.dropUnsorted(target.folderId, paths);
+      return this.syncNow({});
+    });
   }
 
   /**
    * 「削除」（ADR-0006）。ローカルのゴミ箱へ送る。リモートには触らない——そもそも
    * リモートに無いファイルだけがここに来る。
    */
-  async trashLocalFiles(paths: readonly string[]): Promise<{ trashed: string[]; errors: string[] }> {
-    const target = this.requireTarget();
-    const local = this.store();
-    const result = { trashed: [] as string[], errors: [] as string[] };
+  trashLocalFiles(paths: readonly string[]): Promise<{ trashed: string[]; errors: string[] }> {
+    return this.exclusive(async () => {
+      const target = this.requireTarget();
+      const local = this.store();
+      const result = { trashed: [] as string[], errors: [] as string[] };
 
-    for (const path of paths) {
-      try {
-        await local.delete(path);
-        result.trashed.push(path);
-      } catch (e) {
-        result.errors.push(`${path}: ${e instanceof Error ? e.message : String(e)}`);
+      for (const path of paths) {
+        try {
+          await local.delete(path);
+          result.trashed.push(path);
+        } catch (e) {
+          result.errors.push(`${path}: ${e instanceof Error ? e.message : String(e)}`);
+        }
       }
-    }
-    await this.dropUnsorted(target.folderId, result.trashed);
-    return result;
+      await this.dropUnsorted(target.folderId, result.trashed);
+      return result;
+    });
   }
 
   /** 適用せずに、今の同期が何をするかを数える。サイドバーの表示に使う。 */

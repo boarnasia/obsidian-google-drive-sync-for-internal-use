@@ -85,6 +85,10 @@ export function googleLoginLoopback(opts: { clientId: string; clientSecret?: str
     };
 
     const verifier = generateCodeVerifier();
+    // 認可要求に載せ、戻りで突き合わせる値。ループバックのポートは同じ端末の
+    // どのプロセスからも、踏まされたページからも叩けるので、これが一致しない
+    // 応答は認可の戻りではない。
+    const state = generateCodeVerifier();
 
     const server = http.createServer((req, res) => {
       if (!req.url) {
@@ -99,6 +103,11 @@ export function googleLoginLoopback(opts: { clientId: string; clientSecret?: str
         res.writeHead(204);
         res.end();
         return;
+      }
+      if (url.searchParams.get("state") !== state) {
+        res.writeHead(400);
+        res.end();
+        return; // 待ち続ける。本物の戻りはこの後に来るかもしれない
       }
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(`<!doctype html><html><head><meta charset="utf-8"></head><body><h3>${opts.label} connected — you can close this tab.</h3></body></html>`);
@@ -140,6 +149,7 @@ export function googleLoginLoopback(opts: { clientId: string; clientSecret?: str
               redirectUri: `http://127.0.0.1:${port}`,
               scope: opts.scope,
               codeChallenge: challenge,
+              state,
             })
           );
         },

@@ -117,6 +117,8 @@ export const ko: Strings = {
   panelUpload: "업로드",
   panelDownload: "다운로드",
   panelConflict: "충돌",
+  panelDeleteLocal: "로컬에서 삭제",
+  panelDeleteRemote: "Drive에서 삭제",
   panelLocalOnly: "로컬 전용",
   panelNoChanges: "동기화할 항목이 없습니다.",
   panelMore: (n) => `…외 ${n}건`,

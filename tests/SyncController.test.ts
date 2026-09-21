@@ -407,3 +407,72 @@ describe("同期先の確認", () => {
     await expect(controller().lookupTarget("https://drive.google.com/drive/folders/x")).rejects.toThrow();
   });
 });
+
+/*
+ * sync・clone・分類は、どれも最後に同じ syncState[folderId] を書く。重なると
+ * 後から終わった方が先の結果を丸ごと捨て、ベースラインが両側と食い違う——次の
+ * 同期はそれを大量削除として読む。呼び出し元はサイドバー・ポーリング・ファイル
+ * 監視と複数あるので、入口ごとではなく SyncController で一本化する。
+ */
+describe("ベースラインを書く操作は重ならない", () => {
+  it("同期中の clone は断る", async () => {
+    vault.seed("A.md", "a");
+    const c = connected();
+
+    const first = c.sync();
+    await expect(c.clone()).rejects.toThrow();
+    await first;
+  });
+
+  it("clone 中の同期は断る", async () => {
+    drive.seed("B.md", "b");
+    const c = connected();
+
+    const first = c.clone();
+    await expect(c.sync()).rejects.toThrow();
+    await first;
+  });
+
+  it("同期中の「共有」「削除」も断る", async () => {
+    vault.seed("迷い中.md", "未定");
+    settings.unsorted[ROOT] = ["迷い中.md"];
+    const c = connected();
+
+    const first = c.sync();
+    await expect(c.shareLocalFiles(["迷い中.md"])).rejects.toThrow();
+    await expect(c.trashLocalFiles(["迷い中.md"])).rejects.toThrow();
+    await first;
+
+    // 断られただけで、保留も Vault もそのまま。
+    expect(settings.unsorted[ROOT]).toEqual(["迷い中.md"]);
+    expect(vault.contentOf("迷い中.md")).toBe("未定");
+  });
+
+  it("終わった後は次の操作が通る（鍵が残らない）", async () => {
+    vault.seed("A.md", "a");
+    const c = connected();
+
+    await c.sync();
+    await expect(c.clone()).resolves.toBeDefined();
+  });
+
+  it("失敗した操作も鍵を返す", async () => {
+    const c = connected();
+    settings.target = null;
+
+    await expect(c.sync()).rejects.toThrow();
+    settings.target = TARGET;
+    await expect(c.sync()).resolves.toBeDefined();
+  });
+
+  /** 「共有」は内部で同期まで進む。自分の鍵で自分を締め出さないこと。 */
+  it("「共有」は自分の同期で詰まらない", async () => {
+    vault.seed("迷い中.md", "決めた");
+    settings.unsorted[ROOT] = ["迷い中.md"];
+
+    const report = await connected().shareLocalFiles(["迷い中.md"]);
+
+    expect(report.uploaded).toContain("迷い中.md");
+    expect(settings.unsorted[ROOT]).toEqual([]);
+  });
+});

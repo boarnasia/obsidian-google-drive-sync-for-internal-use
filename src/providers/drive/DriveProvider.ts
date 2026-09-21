@@ -160,7 +160,7 @@ export class DriveProvider implements RemoteProvider {
   }
 
   private async findFolder(name: string, parent: string): Promise<string | undefined> {
-    const q = `mimeType='${FOLDER_MIME}' and name='${escapeDriveQuery(name)}' and '${parent}' in parents and trashed=false`;
+    const q = `mimeType='${FOLDER_MIME}' and name='${escapeDriveQuery(name)}' and '${escapeDriveQuery(parent)}' in parents and trashed=false`;
     const res = await this.http("GET", `${API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent("files(id)")}&spaces=drive${this.listParams()}`, await this.hdrs());
     return (await this.json<{ files?: DriveFile[] }>(res, "find-folder")).files?.[0]?.id;
   }
@@ -185,7 +185,7 @@ export class DriveProvider implements RemoteProvider {
   private async locate(path: string): Promise<{ id: string; version: string; size: number; mtime?: number } | null> {
     const parent = await this.folderFor(this.dirOf(path), false);
     if (!parent) return null;
-    const q = `name='${escapeDriveQuery(this.baseOf(path))}' and '${parent}' in parents and mimeType!='${FOLDER_MIME}' and trashed=false`;
+    const q = `name='${escapeDriveQuery(this.baseOf(path))}' and '${escapeDriveQuery(parent)}' in parents and mimeType!='${FOLDER_MIME}' and trashed=false`;
     const res = await this.http("GET", `${API}/files?q=${encodeURIComponent(q)}&fields=${encodeURIComponent("files(id,md5Checksum,modifiedTime,size)")}&spaces=drive${this.listParams()}`, await this.hdrs());
     const f = (await this.json<{ files?: DriveFile[] }>(res, "find")).files?.[0];
     return f?.id ? { id: f.id, version: f.md5Checksum ?? f.modifiedTime ?? "", size: Number(f.size ?? 0), mtime: msOf(f.modifiedTime) } : null;
@@ -215,7 +215,7 @@ export class DriveProvider implements RemoteProvider {
     return this.hdrs({ "content-type": contentType }).then((h) =>
       this.http(
         "PATCH",
-        `${UPLOAD}/files/${id}?uploadType=media&fields=${encodeURIComponent("md5Checksum,modifiedTime")}${this.allDrives("&")}`,
+        `${UPLOAD}/files/${encodeURIComponent(id)}?uploadType=media&fields=${encodeURIComponent("md5Checksum,modifiedTime")}${this.allDrives("&")}`,
         h,
         data
       )
@@ -225,7 +225,7 @@ export class DriveProvider implements RemoteProvider {
   async get(path: string): Promise<ArrayBuffer | null> {
     const id = await this.fileId(path);
     if (!id) return null;
-    const res = await this.http("GET", `${API}/files/${id}?alt=media${this.allDrives("&")}`, await this.hdrs());
+    const res = await this.http("GET", `${API}/files/${encodeURIComponent(id)}?alt=media${this.allDrives("&")}`, await this.hdrs());
     if (res.status === 404) {
       this.fileIds.delete(path);
       return null;
@@ -247,7 +247,7 @@ export class DriveProvider implements RemoteProvider {
     // permanent files.delete, so a wrong "deleted locally" conclusion is never
     // irreversible — mirrors the local recoverable-trash policy.
     const body = new TextEncoder().encode(JSON.stringify({ trashed: true })).buffer;
-    const res = await this.http("PATCH", `${API}/files/${id}${this.allDrives("?")}`, await this.hdrs({ "content-type": "application/json" }), body);
+    const res = await this.http("PATCH", `${API}/files/${encodeURIComponent(id)}${this.allDrives("?")}`, await this.hdrs({ "content-type": "application/json" }), body);
     if (res.status !== 404 && (res.status < 200 || res.status >= 300)) throw new Error(`Drive trash ${path}: ${res.status}`);
   }
 
@@ -269,7 +269,9 @@ export class DriveProvider implements RemoteProvider {
     const subfolders: { id: string; path: string }[] = [];
     let pageToken: string | undefined;
     do {
-      const q = `'${folderId}' in parents and trashed=false`;
+      // 同期ルートの ID は利用者が貼った URL から来る。q を閉じる文字が混ざっても
+      // 別のフォルダを列挙しないよう、Drive から返った ID と同じく escape する。
+      const q = `'${escapeDriveQuery(folderId)}' in parents and trashed=false`;
       let url =
         `${API}/files?q=${encodeURIComponent(q)}` +
         `&fields=${encodeURIComponent("nextPageToken,files(id,name,mimeType,md5Checksum,modifiedTime,size)")}` +

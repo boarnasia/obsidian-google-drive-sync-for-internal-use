@@ -3,7 +3,11 @@ import { LocalStore } from "../sync/LocalStore";
 import { LocalFile, LocalStamp } from "../sync/types";
 import { sha256Hex } from "../util/hash";
 import { safeVaultPath } from "../util/paths";
+import { runPool } from "../util/pool";
 import { t } from "../i18n";
+
+/** 同時に中身を読むファイル数。大きな添付が数百件あっても、載るのはこの数だけ。 */
+const HASH_CONCURRENCY = 8;
 
 /**
  * 共有Vault のローカル側。
@@ -88,17 +92,26 @@ export class ObsidianLocalStore implements LocalStore {
    * Vault 全体を読み直すことになる。
    */
   async list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]> {
-    return Promise.all(
-      this.filesInMount().map(async (f) => {
-        const path = this.toMountRelative(f.path);
-        const { mtime, size } = f.stat;
-        const cached = known?.get(path);
-        if (cached && cached.mtime === mtime && cached.size === size) {
-          return { path, hash: cached.hash, mtime, size };
-        }
-        return { path, hash: await sha256Hex(await this.app.vault.readBinary(f)), mtime, size };
-      })
-    );
+    const out: LocalFile[] = [];
+    const toHash: TFile[] = [];
+
+    for (const f of this.filesInMount()) {
+      const path = this.toMountRelative(f.path);
+      const { mtime, size } = f.stat;
+      const cached = known?.get(path);
+      if (cached && cached.mtime === mtime && cached.size === size) out.push({ path, hash: cached.hash, mtime, size });
+      else toHash.push(f);
+    }
+
+    // 読むものだけを、上限を付けて読む。全件を一度に読むと、初回同期で Vault の
+    // 中身がまるごと同時にメモリに載る。
+    await runPool(toHash, HASH_CONCURRENCY, async (f) => {
+      const { mtime, size } = f.stat;
+      const hash = await sha256Hex(await this.app.vault.readBinary(f));
+      out.push({ path: this.toMountRelative(f.path), hash, mtime, size });
+    });
+    // 読み終わった順ではなくパス順で返す。サイドバーの一覧が更新のたびに並び替わらない。
+    return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
   }
 
   async read(path: string): Promise<ArrayBuffer> {

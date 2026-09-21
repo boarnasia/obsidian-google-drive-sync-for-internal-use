@@ -127,6 +127,8 @@ export const ru: Strings = {
   panelUpload: "Отправка",
   panelDownload: "Загрузка",
   panelConflict: "Конфликт",
+  panelDeleteLocal: "Удалить локально",
+  panelDeleteRemote: "Удалить в Drive",
   panelLocalOnly: "Только локально",
   panelNoChanges: "Синхронизировать нечего.",
   panelMore: (n) => `…и ещё ${n}`,

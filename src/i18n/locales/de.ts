@@ -118,6 +118,8 @@ export const de: Strings = {
   panelUpload: "Hochladen",
   panelDownload: "Herunterladen",
   panelConflict: "Konflikt",
+  panelDeleteLocal: "Lokal löschen",
+  panelDeleteRemote: "In Drive löschen",
   panelLocalOnly: "Nur lokal",
   panelNoChanges: "Nichts zu synchronisieren.",
   panelMore: (n) => `…und ${n} weitere`,

@@ -43,6 +43,7 @@ interface Panel {
   refresh(): Promise<void>;
   plan: SyncPlan | null;
   approved: Set<string>;
+  heldDeletes(plan: SyncPlan): string[];
   confirmTrashAll(paths: string[]): void;
   runClone(): void;
   approveDeletes(): void;
@@ -89,7 +90,7 @@ describe("数え直し", () => {
   });
 
   it("対象でなくなった削除の選択は落とす", async () => {
-    plugin = fakePlugin({ plan: plan({ deleteRemote: ["b.md"] }) });
+    plugin = fakePlugin({ plan: plan({ blocked: ["delete-guard"], deleteRemote: ["b.md"] }) });
     const panel = panelOf(plugin);
     panel.approved.add("a.md");
     panel.approved.add("b.md");
@@ -97,6 +98,40 @@ describe("数え直し", () => {
     await panel.refresh();
 
     expect([...panel.approved]).toEqual(["b.md"]);
+  });
+
+  it("承認の一覧から消えたら選択も落とす", async () => {
+    // 上限に当たっていなければ、この削除は承認を待っていない。
+    plugin = fakePlugin({ plan: plan({ deleteRemote: ["b.md"] }) });
+    const panel = panelOf(plugin);
+    panel.approved.add("b.md");
+
+    await panel.refresh();
+
+    expect(panel.approved.size).toBe(0);
+  });
+});
+
+/*
+ * 承認を求めるのは、安全上限に当たって実際に保留されている削除だけである。
+ * 上限内の削除まで並べると、押さなければ消えないように読め、放っておけば
+ * 止まっていると誤解させる。
+ */
+describe("承認を待っている削除", () => {
+  const panel = (): Panel => panelOf(fakePlugin());
+
+  it("上限に当たっていれば、両側の削除を並べる", () => {
+    const p = plan({ blocked: ["delete-guard"], deleteRemote: ["r.md"], deleteLocal: ["l.md"] });
+    expect(panel().heldDeletes(p)).toEqual(["r.md", "l.md"]);
+  });
+
+  it("上限内の削除は並べない（承認を待っていない）", () => {
+    expect(panel().heldDeletes(plan({ deleteRemote: ["r.md"], deleteLocal: ["l.md"] }))).toEqual([]);
+  });
+
+  it("別の理由で止まっているだけなら並べない", () => {
+    const p = plan({ blocked: ["vault-empty"], deleteRemote: ["r.md"] });
+    expect(panel().heldDeletes(p)).toEqual([]);
   });
 });
 

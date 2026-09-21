@@ -518,6 +518,30 @@ describe("除外と保留", () => {
     expect(plan.deleteRemote).toEqual([]);
   });
 
+  /*
+   * 上限の分母と、数え上げる対象は同じ集合でなければならない。片方だけが除外済みの
+   * パスを含むと、plan は「上限を超えたので止まる」と言いながら sync は消す、という
+   * 食い違いになる。
+   */
+  it("除外されたパスは上限の分母にも入らない", async () => {
+    for (let i = 0; i < 100; i++) await L.write(`下書き/n${i}.md`, enc(String(i)));
+    for (let i = 0; i < 11; i++) await L.write(`議事録/m${i}.md`, enc(String(i)));
+    const s1 = await baseline();
+
+    // 除外の後、追跡は 11 件 → 上限は 10 件。リモートから 11 件消えれば超える。
+    for (let i = 0; i < 11; i++) await R.delete(`議事録/m${i}.md`);
+    const e = withIgnore("下書き/");
+
+    const plan = await e.plan(s1);
+    const { report } = await e.sync(s1);
+
+    expect(plan.deleteLimit).toBe(10);
+    expect(plan.blocked).toEqual(["delete-guard"]);
+    // 止まると言った以上、消してはいない。
+    expect(report.deletedLocal).toEqual([]);
+    expect(report.deferredDeletes).toHaveLength(11);
+  });
+
   it("未整理のファイルはアップロードを止める", async () => {
     await L.write("私のメモ.md", enc("私的"));
     await L.write("議事録.md", enc("共有"));

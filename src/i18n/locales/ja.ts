@@ -117,6 +117,8 @@ export const ja: Strings = {
   panelUpload: "アップロード",
   panelDownload: "ダウンロード",
   panelConflict: "競合",
+  panelDeleteLocal: "ローカルから削除",
+  panelDeleteRemote: "Drive から削除",
   panelLocalOnly: "ローカル固有",
   panelNoChanges: "同期するものはありません。",
   panelMore: (n) => `…ほか ${n} 件`,

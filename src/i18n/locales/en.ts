@@ -119,6 +119,8 @@ export const en = {
   panelUpload: "Upload",
   panelDownload: "Download",
   panelConflict: "Conflict",
+  panelDeleteLocal: "Delete locally",
+  panelDeleteRemote: "Delete on Drive",
   panelLocalOnly: "Local only",
   panelNoChanges: "Nothing to sync.",
   panelMore: (n: number): string => `…and ${n} more`,

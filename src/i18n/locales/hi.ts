@@ -116,6 +116,8 @@ export const hi: Strings = {
   panelUpload: "अपलोड",
   panelDownload: "डाउनलोड",
   panelConflict: "टकराव",
+  panelDeleteLocal: "स्थानीय रूप से हटाएँ",
+  panelDeleteRemote: "Drive से हटाएँ",
   panelLocalOnly: "केवल स्थानीय",
   panelNoChanges: "सिंक करने को कुछ नहीं है।",
   panelMore: (n) => `…और ${n} अन्य`,

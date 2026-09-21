@@ -63,6 +63,17 @@ function stateOf(L: LocalFile, remoteVersion: string): FileState {
 interface Sides {
   localMap: Map<string, LocalFile>;
   remoteMap: Map<string, RemoteObject>;
+  /** 除外を除いたベースライン上のパス。上限の計算にも走査にも同じものを使う。 */
+  tracked: string[];
+}
+
+/** 何件消すことになるか、そのうち上限を超えて持ち越す側はどちらか。 */
+interface Deletions {
+  deferLocal: boolean;
+  deferRemote: boolean;
+  localDeletes: number;
+  remoteDeletes: number;
+  limit: number;
 }
 
 export class SyncEngine {
@@ -90,12 +101,9 @@ export class SyncEngine {
     return {
       localMap: new Map(localList.filter((f) => !this.ignored(f.path)).map((f) => [f.path, f])),
       remoteMap: new Map(remoteList.filter((o) => !this.ignored(o.path)).map((o) => [o.path, o])),
+      // 除外されたパスはベースラインからも外す。残すと、次の同期で削除と読まれる。
+      tracked: Object.keys(prev).filter((path) => !this.ignored(path)),
     };
-  }
-
-  /** 除外されたパスはベースラインからも外す。残すと、次の同期で削除と読まれる。 */
-  private trackedPaths(prev: SyncStateData): string[] {
-    return Object.keys(prev).filter((path) => !this.ignored(path));
   }
 
   /**
@@ -103,10 +111,11 @@ export class SyncEngine {
    * 止めるかどうかの判断が同じ計算から出るようにしている。
    */
   async plan(prev: SyncStateData): Promise<SyncPlan> {
-    return this.planFrom(prev, await this.snapshot(prev));
+    const sides = await this.snapshot(prev);
+    return this.planFrom(prev, sides, this.planDeletions(prev, sides));
   }
 
-  private planFrom(prev: SyncStateData, { localMap, remoteMap }: Sides): SyncPlan {
+  private planFrom(prev: SyncStateData, { localMap, remoteMap, tracked }: Sides, deletions: Deletions): SyncPlan {
     const plan: SyncPlan = {
       upload: [],
       download: [],
@@ -116,10 +125,10 @@ export class SyncEngine {
       localOnly: [],
       unsorted: [],
       blocked: [],
-      deleteLimit: this.deleteGuard(this.trackedPaths(prev).length),
+      deleteLimit: deletions.limit,
     };
 
-    for (const path of new Set([...localMap.keys(), ...remoteMap.keys(), ...this.trackedPaths(prev)])) {
+    for (const path of new Set([...localMap.keys(), ...remoteMap.keys(), ...tracked])) {
       const L = localMap.get(path);
       const R = remoteMap.get(path);
       const S = prev[path];
@@ -141,11 +150,9 @@ export class SyncEngine {
       else if (R) plan.download.push(path);
     }
 
-    const { localDeletes, remoteDeletes } = this.planDeletions(prev, localMap, remoteMap);
-    const tracked = this.trackedPaths(prev).length;
-    if (tracked === 0 && localMap.size > 0 && remoteMap.size > 0) plan.blocked.push("no-baseline");
-    if (tracked > 0 && localMap.size === 0) plan.blocked.push("vault-empty");
-    if (localDeletes > plan.deleteLimit || remoteDeletes > plan.deleteLimit) plan.blocked.push("delete-guard");
+    if (tracked.length === 0 && localMap.size > 0 && remoteMap.size > 0) plan.blocked.push("no-baseline");
+    if (tracked.length > 0 && localMap.size === 0) plan.blocked.push("vault-empty");
+    if (deletions.deferLocal || deletions.deferRemote) plan.blocked.push("delete-guard");
     return plan;
   }
 
@@ -160,11 +167,12 @@ export class SyncEngine {
     opts: { approvedDeletes?: ReadonlySet<string> } = {}
   ): Promise<{ state: SyncStateData; report: SyncReport }> {
     const sides = await this.snapshot(prev);
-    const { localMap, remoteMap } = sides;
-    const plan = this.planFrom(prev, sides);
+    const { localMap, remoteMap, tracked } = sides;
+    const deletions = this.planDeletions(prev, sides);
+    const { deferLocal, deferRemote } = deletions;
+    const plan = this.planFrom(prev, sides, deletions);
     const approved = opts.approvedDeletes ?? new Set<string>();
 
-    const { deferLocal, deferRemote } = this.planDeletions(prev, localMap, remoteMap);
     const holdUploads = plan.blocked.length > 0;
 
     const state: SyncStateData = { ...prev };
@@ -174,7 +182,7 @@ export class SyncEngine {
     report.blocked = plan.blocked;
     report.localOnly = plan.localOnly;
 
-    const paths = new Set<string>([...localMap.keys(), ...remoteMap.keys(), ...this.trackedPaths(prev)]);
+    const paths = new Set<string>([...localMap.keys(), ...remoteMap.keys(), ...tracked]);
     // パスごとの判断は互いに独立している（触るのは自分の state[path] と report の配列だけ）。
     await runPool(paths, this.concurrency, async (path) => {
       try {
@@ -203,10 +211,9 @@ export class SyncEngine {
     // 退避先が同じ秒に衝突しないよう、既存のパスと今回作った分を憶えておく。
     const taken = new Set<string>(localMap.keys());
 
-    await runPool(remoteMap.keys(), Math.max(this.concurrency, CLONE_CONCURRENCY), async (path) => {
+    await runPool(remoteMap, Math.max(this.concurrency, CLONE_CONCURRENCY), async ([path, R]) => {
       try {
         const L = localMap.get(path);
-        const R = remoteMap.get(path) as RemoteObject;
         const data = await this.remote.get(path);
         if (data === null) return; // 実行中に消えた。次の同期で整合する
         const hash = await sha256Hex(data);
@@ -257,11 +264,7 @@ export class SyncEngine {
    * それでも上限を超えた場合は、削除だけを持ち越す。同期全体を止めると、消した本人
    * ではない全員の作業が、原因も分からないまま止まる。
    */
-  private planDeletions(
-    prev: SyncStateData,
-    localMap: Map<string, LocalFile>,
-    remoteMap: Map<string, RemoteObject>
-  ): { deferLocal: boolean; deferRemote: boolean; localDeletes: number; remoteDeletes: number } {
+  private planDeletions(prev: SyncStateData, { localMap, remoteMap, tracked }: Sides): Deletions {
     // ベースラインに無いパス = 今回現れたもの。移動先の候補。
     const newLocalHashes = new Set<string>();
     for (const [path, f] of localMap) if (!prev[path]) newLocalHashes.add(f.hash);
@@ -270,7 +273,7 @@ export class SyncEngine {
 
     let localDeletes = 0;
     let remoteDeletes = 0;
-    for (const path of Object.keys(prev)) {
+    for (const path of tracked) {
       const S = prev[path];
       const L = localMap.get(path);
       const R = remoteMap.get(path);
@@ -281,8 +284,16 @@ export class SyncEngine {
       if (!L && R && R.version === S.remoteVersion && !newLocalHashes.has(S.localHash)) remoteDeletes++;
     }
 
-    const limit = this.deleteGuard(Object.keys(prev).length);
-    return { deferLocal: localDeletes > limit, deferRemote: remoteDeletes > limit, localDeletes, remoteDeletes };
+    // 上限も数え上げも同じ tracked から出す。ここがずれると、plan が「止まる」と
+    // 言いながら sync は消す、という食い違いが起きる。
+    const limit = this.deleteGuard(tracked.length);
+    return {
+      deferLocal: localDeletes > limit,
+      deferRemote: remoteDeletes > limit,
+      localDeletes,
+      remoteDeletes,
+      limit,
+    };
   }
 
   private async reconcile(

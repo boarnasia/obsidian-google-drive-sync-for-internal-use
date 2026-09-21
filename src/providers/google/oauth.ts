@@ -36,6 +36,12 @@ export function buildAuthUrl(p: {
   redirectUri: string;
   scope: string;
   codeChallenge: string;
+  /**
+   * CSRF 対策（RFC 6749 §10.12）。ループバックのポートは誰でも叩けるので、これが
+   * 無いと、利用者のブラウザに踏ませた任意のリクエストがこの認可の応答として
+   * 通ってしまう。戻ってきた値が一致しない応答は捨てる。
+   */
+  state: string;
 }): string {
   const u = new URL(AUTH_ENDPOINT);
   u.searchParams.set("client_id", p.clientId);
@@ -44,6 +50,7 @@ export function buildAuthUrl(p: {
   u.searchParams.set("scope", p.scope);
   u.searchParams.set("code_challenge", p.codeChallenge);
   u.searchParams.set("code_challenge_method", "S256");
+  u.searchParams.set("state", p.state);
   u.searchParams.set("access_type", "offline");
   u.searchParams.set("prompt", "consent");
   return u.toString();

@@ -111,6 +111,8 @@ export const zh: Strings = {
   panelUpload: "上传",
   panelDownload: "下载",
   panelConflict: "冲突",
+  panelDeleteLocal: "本地删除",
+  panelDeleteRemote: "在 Drive 中删除",
   panelLocalOnly: "仅本地",
   panelNoChanges: "没有需要同步的内容。",
   panelMore: (n) => `…还有 ${n} 项`,

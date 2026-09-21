@@ -111,6 +111,8 @@ export const zhTW: Strings = {
   panelUpload: "上傳",
   panelDownload: "下載",
   panelConflict: "衝突",
+  panelDeleteLocal: "本機刪除",
+  panelDeleteRemote: "在 Drive 中刪除",
   panelLocalOnly: "僅本機",
   panelNoChanges: "沒有需要同步的項目。",
   panelMore: (n) => `…還有 ${n} 項`,

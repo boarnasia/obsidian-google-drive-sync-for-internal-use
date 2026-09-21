@@ -55,10 +55,10 @@ export class SyncPanelView extends ItemView {
       this.plan = await this.plugin.controller.plan();
       this.computedAt = Date.now();
       this.error = null;
-      // 対象でなくなった削除の選択は残さない。
-      for (const path of [...this.approved]) {
-        if (!this.plan.deleteRemote.includes(path) && !this.plan.deleteLocal.includes(path)) this.approved.delete(path);
-      }
+      // 承認を待っていないものの選択は残さない。一覧から消えた行の承認が残ると、
+      // 次に上限に当たったときに、選んだ憶えの無い削除が選ばれた状態で現れる。
+      const held = new Set(this.heldDeletes(this.plan));
+      for (const path of [...this.approved]) if (!held.has(path)) this.approved.delete(path);
     } catch (e) {
       this.error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -184,8 +184,18 @@ export class SyncPanelView extends ItemView {
    * 保留された削除。ここだけがチームのデータを実際に消すので、既定では何も
    * 選ばれておらず、件数を示してから実行する。
    */
+  /**
+   * 承認を待っている削除。上限に当たっていなければ空である——そのときの削除は
+   * 保留されておらず、次の同期でそのまま消える。承認の一覧に並べると、止まって
+   * いないものを止まっていると読ませ、押す必要の無いボタンを押させる。
+   */
+  private heldDeletes(plan: SyncPlan): string[] {
+    if (!plan.blocked.includes("delete-guard")) return [];
+    return [...plan.deleteRemote, ...plan.deleteLocal];
+  }
+
   private renderHeldDeletes(root: HTMLElement, plan: SyncPlan): void {
-    const held = [...plan.deleteRemote, ...plan.deleteLocal];
+    const held = this.heldDeletes(plan);
     if (held.length === 0) return;
 
     root.createEl("h4", { text: t.panelHeldDeletes(held.length) });
@@ -251,6 +261,8 @@ export class SyncPanelView extends ItemView {
       [t.panelUpload, plan.upload],
       [t.panelDownload, plan.download],
       [t.panelConflict, plan.conflict],
+      [t.panelDeleteLocal, plan.deleteLocal],
+      [t.panelDeleteRemote, plan.deleteRemote],
       [t.panelLocalOnly, plan.localOnly],
     ];
     if (rows.every(([, paths]) => paths.length === 0)) {

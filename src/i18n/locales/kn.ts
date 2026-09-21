@@ -117,6 +117,8 @@ export const kn: Strings = {
   panelUpload: "ಅಪ್‌ಲೋಡ್",
   panelDownload: "ಡೌನ್‌ಲೋಡ್",
   panelConflict: "ಸಂಘರ್ಷ",
+  panelDeleteLocal: "ಸ್ಥಳೀಯವಾಗಿ ಅಳಿಸಿ",
+  panelDeleteRemote: "Drive ನಿಂದ ಅಳಿಸಿ",
   panelLocalOnly: "ಸ್ಥಳೀಯ ಮಾತ್ರ",
   panelNoChanges: "ಸಿಂಕ್ ಮಾಡಲು ಏನೂ ಇಲ್ಲ.",
   panelMore: (n) => `…ಇನ್ನೂ ${n}`,

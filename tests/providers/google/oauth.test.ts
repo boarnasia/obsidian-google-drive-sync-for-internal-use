@@ -38,6 +38,7 @@ describe("buildAuthUrl", () => {
         redirectUri: "http://127.0.0.1:1234/",
         scope: "https://www.googleapis.com/auth/drive",
         codeChallenge: "chal",
+        state: "st-1",
       })
     );
 
@@ -64,6 +65,10 @@ describe("buildAuthUrl", () => {
 
   it("クライアントシークレットは認可 URL に載せない", () => {
     expect(url().searchParams.has("client_secret")).toBe(false);
+  });
+
+  it("state を載せる（戻りが本物かを突き合わせる手がかり）", () => {
+    expect(url().searchParams.get("state")).toBe("st-1");
   });
 });
 

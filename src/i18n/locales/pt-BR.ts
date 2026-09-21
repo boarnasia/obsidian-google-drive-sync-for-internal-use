@@ -119,6 +119,8 @@ export const ptBR: Strings = {
   panelUpload: "Envio",
   panelDownload: "Download",
   panelConflict: "Conflito",
+  panelDeleteLocal: "Excluir localmente",
+  panelDeleteRemote: "Excluir no Drive",
   panelLocalOnly: "Somente local",
   panelNoChanges: "Nada para sincronizar.",
   panelMore: (n) => `…e mais ${n}`,
