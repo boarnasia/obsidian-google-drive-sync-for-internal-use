@@ -43,7 +43,6 @@ export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules — paths that are ne
 # Write one rule per line below.
 
 Drafts/
-*.tmp
 `;
 
 export const TEAM_README_TEMPLATE = `# Google Drive Sync
