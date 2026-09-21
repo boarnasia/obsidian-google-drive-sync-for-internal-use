@@ -11,6 +11,15 @@ import { ObsidianLocalStore } from "./obsidian/ObsidianLocalStore";
 import { requestUrlHttp } from "./obsidian/requestUrlHttp";
 import { withRetry } from "./util/retry";
 import { DriveTarget, Settings } from "./settings";
+import { ignoreMatcher } from "./sync/ignore";
+import {
+  LOCAL_IGNORE_PATH,
+  TEAM_IGNORE_PATH,
+  TEAM_IGNORE_TEMPLATE,
+  TEAM_README_PATH,
+  TEAM_README_TEMPLATE,
+  localIgnoreTemplate,
+} from "./sync/configFiles";
 import { t } from "./i18n";
 
 /**
@@ -20,6 +29,10 @@ import { t } from "./i18n";
  */
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
+function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
+  return local.write(path, new TextEncoder().encode(body).buffer);
+}
+
 /**
  * 検証済みのコアをプラグインに繋ぐ層。資格情報はこのプラグイン自身の data.json に
  * 置かれ、そこは同期対象から常に外れる（ADR-0003）。
@@ -27,6 +40,15 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 export class SyncController {
   private access: { token: string; expiresAt: number } | null = null;
   private readonly http: HttpSend;
+  /**
+   * ベースラインを書き換える操作が同時に走っていないか。
+   *
+   * sync・clone・分類はどれも最後に同じ `syncState[folderId]` を上書きする。二つが
+   * 重なると、後から終わった方が先の結果を丸ごと捨て、ベースラインが実際の両側と
+   * 食い違う——次の同期はそれを大量削除として読む。呼び出し元はサイドバー・
+   * ポーリング・ファイル監視と複数あるので、入口ではなくここで一本化する。
+   */
+  private running = false;
 
   constructor(
     private readonly app: App,
@@ -54,6 +76,17 @@ export class SyncController {
 
   private requireOAuthClient(): void {
     if (!this.hasOAuthClient) throw new Error(t.errNoOauthClient);
+  }
+
+  /** ベースラインを書き換える操作はここを通す。重なったら待たせずに断る。 */
+  private async exclusive<T>(run: () => Promise<T>): Promise<T> {
+    if (this.running) throw new Error(t.syncAlreadyRunning);
+    this.running = true;
+    try {
+      return await run();
+    } finally {
+      this.running = false;
+    }
   }
 
   private requireTarget(): DriveTarget {
@@ -130,14 +163,21 @@ export class SyncController {
   }
 
   /** 手動、およびローカルの変更を起点とする同期。必ず走る。 */
-  async sync(opts: { approvedDeletes?: ReadonlySet<string> } = {}): Promise<SyncReport> {
+  sync(opts: { approvedDeletes?: ReadonlySet<string> } = {}): Promise<SyncReport> {
+    return this.exclusive(() => this.syncNow(opts));
+  }
+
+  private async syncNow(opts: { approvedDeletes?: ReadonlySet<string> }): Promise<SyncReport> {
     const target = this.requireTarget();
 
     // 起点は走査の *前* に取る。後から取ると、走査中に入った変更を見落とす。
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await this.engine(target).sync(this.settings.syncState[key] ?? {}, opts);
+    const { state, report } = await (await this.engineFor(target)).sync(this.settings.syncState[key] ?? {}, opts);
+    // 上がった、あるいは消えたファイルは、もう分類の対象ではない。
+    const stillLocalOnly = new Set(report.localOnly);
+    this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => stillLocalOnly.has(path));
     await this.commit(key, state, freshToken);
     return report;
   }
@@ -148,27 +188,112 @@ export class SyncController {
    * 初回接続と、状態が壊れたときの復旧の両方がここを通る。ローカルにしか無い
    * ファイルは消さず、報告に載せて呼び出し側が分類できるようにする。
    */
-  async clone(): Promise<SyncReport> {
+  clone(): Promise<SyncReport> {
+    return this.exclusive(() => this.cloneNow());
+  }
+
+  private async cloneNow(): Promise<SyncReport> {
     const target = this.requireTarget();
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await this.engine(target).clone(this.settings.syncState[key] ?? {});
+    const { state, report } = await (await this.engineFor(target)).clone(this.settings.syncState[key] ?? {});
+    // 取り込みは両側を数え直すので、未整理も持ち越さずに作り直す。
+    this.settings.unsorted[key] = [...report.localOnly];
     await this.commit(key, state, freshToken);
+    // 設定ファイルは clone の後に、無いものだけ作る。前に作ると、自分で作ったファイルが
+    // 自分のローカル固有ファイルとして並ぶ。
+    await this.ensureConfigFiles(this.store());
     return report;
+  }
+
+  private async ensureConfigFiles(local: ObsidianLocalStore): Promise<void> {
+    const files: [string, string][] = [
+      [TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE],
+      [TEAM_README_PATH, TEAM_README_TEMPLATE],
+      [LOCAL_IGNORE_PATH, localIgnoreTemplate({ title: t.localIgnoreTitle, body: t.localIgnoreBody })],
+    ];
+    for (const [path, body] of files) {
+      if ((await local.readText(path)) === null) await writeText(local, path, body);
+    }
+  }
+
+  // -------------------------------------------------- ローカル固有ファイルの分類
+
+  /** 未整理として保留中のパス。同期先ごとに持つ。 */
+  unsortedFor(): string[] {
+    const target = this.settings.target;
+    return target ? this.unsortedOf(target.folderId) : [];
+  }
+
+  private unsortedOf(key: string): string[] {
+    return this.settings.unsorted[key] ?? [];
+  }
+
+  private async dropUnsorted(key: string, paths: readonly string[]): Promise<void> {
+    const gone = new Set(paths);
+    this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => !gone.has(path));
+    await this.persist();
+  }
+
+  /**
+   * 「共有」（ADR-0006）。保留を外して同期する。外れたファイルは、この同期で
+   * 普通の新規ファイルとして上がる。
+   */
+  shareLocalFiles(paths: readonly string[]): Promise<SyncReport> {
+    return this.exclusive(async () => {
+      const target = this.requireTarget();
+      await this.dropUnsorted(target.folderId, paths);
+      return this.syncNow({});
+    });
+  }
+
+  /**
+   * 「削除」（ADR-0006）。ローカルのゴミ箱へ送る。リモートには触らない——そもそも
+   * リモートに無いファイルだけがここに来る。
+   */
+  trashLocalFiles(paths: readonly string[]): Promise<{ trashed: string[]; errors: string[] }> {
+    return this.exclusive(async () => {
+      const target = this.requireTarget();
+      const local = this.store();
+      const result = { trashed: [] as string[], errors: [] as string[] };
+
+      for (const path of paths) {
+        try {
+          await local.delete(path);
+          result.trashed.push(path);
+        } catch (e) {
+          result.errors.push(`${path}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+      await this.dropUnsorted(target.folderId, result.trashed);
+      return result;
+    });
   }
 
   /** 適用せずに、今の同期が何をするかを数える。サイドバーの表示に使う。 */
   async plan(): Promise<SyncPlan> {
     const target = this.requireTarget();
-    return this.engine(target).plan(this.settings.syncState[target.folderId] ?? {});
+    return (await this.engineFor(target)).plan(this.settings.syncState[target.folderId] ?? {});
   }
 
-  private engine(target: DriveTarget): SyncEngine {
+  private store(): ObsidianLocalStore {
+    return new ObsidianLocalStore(this.app, this.settings.mountFolder);
+  }
+
+  private async engineFor(target: DriveTarget): Promise<SyncEngine> {
+    const local = this.store();
+    const [team, mine] = await Promise.all([local.readText(TEAM_IGNORE_PATH), local.readText(LOCAL_IGNORE_PATH)]);
+    // 未整理のものだけを止める。分類し終えたファイルは、もうこの集合に居ない。
+    const held = new Set(this.unsortedOf(target.folderId));
     return new SyncEngine(
-      new ObsidianLocalStore(this.app, this.settings.mountFolder),
+      local,
       new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http),
-      () => new Date()
+      () => new Date(),
+      undefined,
+      undefined,
+      ignoreMatcher(team, mine),
+      held
     );
   }
 

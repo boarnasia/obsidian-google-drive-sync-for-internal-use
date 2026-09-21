@@ -15,6 +15,8 @@ export interface LocalStore {
    */
   list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]>;
   read(path: string): Promise<ArrayBuffer>;
+  /** Text of a file that may not exist; `null` when it does not. Used for the config files. */
+  readText(path: string): Promise<string | null>;
   write(path: string, data: ArrayBuffer): Promise<void>;
   delete(path: string): Promise<void>;
 }

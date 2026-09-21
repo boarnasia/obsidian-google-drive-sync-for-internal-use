@@ -48,6 +48,8 @@ export interface SyncPlan {
   deleteRemote: string[];
   /** リモートに無いローカルのファイル。分類の対象（ADR-0006）。 */
   localOnly: string[];
+  /** そのうち未整理のもの。1 件でもあれば新規アップロードを止める。 */
+  unsorted: string[];
   blocked: BlockReason[];
   /** 削除の安全上限。保留された削除を見せるときに使う。 */
   deleteLimit: number;

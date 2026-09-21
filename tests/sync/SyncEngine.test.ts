@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { SyncEngine, defaultDeleteGuard } from "../../src/sync/SyncEngine";
 import { SyncStateData } from "../../src/sync/types";
 import { FakeLocal, FakeRemote, enc } from "../helpers/fakes";
+import { ignoreMatcher } from "../../src/sync/ignore";
 
 /** 競合コピーの名前が決まるよう、時計は止めておく。 */
 const FIXED = (): Date => new Date("2026-02-03T04:05:06Z");
@@ -467,6 +468,101 @@ describe("plan — 適用せずに数える", () => {
 
     expect(plan.blocked).toEqual([]);
     expect(plan.upload).toEqual(["a.md"]);
+  });
+});
+
+describe("除外と保留", () => {
+  const withIgnore = (rules: string, held: ReadonlySet<string> = new Set()) =>
+    new SyncEngine(L, R, FIXED, defaultDeleteGuard, 8, ignoreMatcher(rules), held);
+
+  it("除外されたローカルのファイルはアップロードしない", async () => {
+    await L.write("下書き/秘密.md", enc("x"));
+    await L.write("議事録.md", enc("y"));
+
+    const { report } = await withIgnore("下書き/").sync({});
+
+    expect(report.uploaded).toEqual(["議事録.md"]);
+    expect(R.store.has("下書き/秘密.md")).toBe(false);
+  });
+
+  it("除外されたリモートのファイルはダウンロードしない", async () => {
+    await R.put("資料/図.png", enc("画像"));
+
+    const { report } = await withIgnore("*.png").sync({});
+
+    expect(report.downloaded).toEqual([]);
+    expect(L.store.has("資料/図.png")).toBe(false);
+  });
+
+  it("後から除外しても、どちらも消さない（除外は削除ではない）", async () => {
+    await L.write("図.png", enc("画像"));
+    const s1 = await baseline();
+
+    const { report, state } = await withIgnore("*.png").sync(s1);
+
+    expect(L.store.has("図.png")).toBe(true);
+    expect(R.store.has("図.png")).toBe(true);
+    expect(report.deletedLocal).toEqual([]);
+    expect(report.deletedRemote).toEqual([]);
+    expect(state["図.png"]).toBeUndefined(); // ベースラインからは外す
+  });
+
+  it("除外されたパスは削除の数にも入らない", async () => {
+    for (let i = 0; i < 20; i++) await L.write(`下書き/n${i}.md`, enc(String(i)));
+    await L.write("議事録.md", enc("y"));
+    const s1 = await baseline();
+
+    const plan = await withIgnore("下書き/").plan(s1);
+
+    expect(plan.blocked).toEqual([]);
+    expect(plan.deleteRemote).toEqual([]);
+  });
+
+  /*
+   * 上限の分母と、数え上げる対象は同じ集合でなければならない。片方だけが除外済みの
+   * パスを含むと、plan は「上限を超えたので止まる」と言いながら sync は消す、という
+   * 食い違いになる。
+   */
+  it("除外されたパスは上限の分母にも入らない", async () => {
+    for (let i = 0; i < 100; i++) await L.write(`下書き/n${i}.md`, enc(String(i)));
+    for (let i = 0; i < 11; i++) await L.write(`議事録/m${i}.md`, enc(String(i)));
+    const s1 = await baseline();
+
+    // 除外の後、追跡は 11 件 → 上限は 10 件。リモートから 11 件消えれば超える。
+    for (let i = 0; i < 11; i++) await R.delete(`議事録/m${i}.md`);
+    const e = withIgnore("下書き/");
+
+    const plan = await e.plan(s1);
+    const { report } = await e.sync(s1);
+
+    expect(plan.deleteLimit).toBe(10);
+    expect(plan.blocked).toEqual(["delete-guard"]);
+    // 止まると言った以上、消してはいない。
+    expect(report.deletedLocal).toEqual([]);
+    expect(report.deferredDeletes).toHaveLength(11);
+  });
+
+  it("未整理のファイルはアップロードを止める", async () => {
+    await L.write("私のメモ.md", enc("私的"));
+    await L.write("議事録.md", enc("共有"));
+
+    const { report } = await withIgnore("", new Set(["私のメモ.md"])).sync({ "x.md": { localHash: "h", remoteVersion: "v" } });
+
+    expect(report.uploaded).toEqual(["議事録.md"]);
+    expect(report.heldUploads).toEqual(["私のメモ.md"]);
+    expect(R.store.has("私のメモ.md")).toBe(false);
+  });
+
+  it("未整理があっても、既存ファイルへの編集は上がる", async () => {
+    await L.write("議事録.md", enc("v1"));
+    const s1 = await baseline();
+    await L.write("議事録.md", enc("v2"));
+    await L.write("私のメモ.md", enc("私的"));
+
+    const { report } = await withIgnore("", new Set(["私のメモ.md"])).sync(s1);
+
+    expect(report.uploaded).toEqual(["議事録.md"]);
+    expect(R.text("議事録.md")).toBe("v2");
   });
 });
 

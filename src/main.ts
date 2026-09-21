@@ -11,7 +11,6 @@ import {
 import { DEFAULT_SETTINGS, DriveTarget, Settings } from "./settings";
 import { SyncController } from "./SyncController";
 import { SyncReport } from "./sync/types";
-import { relativeTime } from "./util/time";
 import { SYNC_PANEL_VIEW, SyncPanelView } from "./obsidian/SyncPanelView";
 import { parseFolderId } from "./providers/drive/DriveTarget";
 import { LANGUAGE_NAMES, isLang, setLanguage, t } from "./i18n";
@@ -51,8 +50,10 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     this.controller = new SyncController(this.app, this.settings, () => this.saveData(this.settings));
 
     this.registerView(SYNC_PANEL_VIEW, (leaf) => new SyncPanelView(leaf, this));
+    // 同期の操作はすべてこの画面にあるので、最初から右サイドバーに出しておく。
+    // リボンを経由させると、止まっていることに気づく場所が一段遠くなる。
+    this.app.workspace.onLayoutReady(() => void this.openPanel({ focus: false }));
 
-    this.addRibbonIcon("refresh-cw", t.panelOpen, () => void this.openPanel());
     this.addCommand({ id: "open-sync-panel", name: t.panelOpen, callback: () => void this.openPanel() });
     this.addCommand({ id: "sync-now", name: t.cmdSyncNow, callback: () => void this.runSync() });
     this.addSettingTab(new SettingTab(this.app, this));
@@ -77,13 +78,34 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     this.stopPolling();
   }
 
-  /** 同期管理を右サイドバーに出す。既に開いていればそれを前に出す。 */
-  async openPanel(): Promise<void> {
+  /**
+   * 同期管理を右サイドバーに出す。既に開いていればそれを前に出す。
+   *
+   * @param opts.focus 起動時の自動表示では false。開いている作業を押しのけない。
+   */
+  async openPanel(opts: { focus?: boolean } = {}): Promise<void> {
+    const focus = opts.focus ?? true;
     const existing = this.app.workspace.getLeavesOfType(SYNC_PANEL_VIEW);
     const leaf = existing[0] ?? this.app.workspace.getRightLeaf(false);
     if (!leaf) return;
-    if (!existing.length) await leaf.setViewState({ type: SYNC_PANEL_VIEW, active: true });
-    await this.app.workspace.revealLeaf(leaf);
+    if (!existing.length) await leaf.setViewState({ type: SYNC_PANEL_VIEW, active: focus });
+    if (focus) await this.app.workspace.revealLeaf(leaf);
+  }
+
+  /** 自動同期の入切。サイドバーのトグルから切り替える。 */
+  async setAutoSync(on: boolean): Promise<void> {
+    this.settings.autoSync = on;
+    await this.saveSettings();
+    this.applyPolling();
+    this.refreshPanels();
+  }
+
+  /** 変更を見に行く間隔（分）。1 未満は受け取らず、前の値を保つ。 */
+  async setPollMinutes(minutes: number): Promise<void> {
+    if (!Number.isFinite(minutes) || minutes < 1) return;
+    this.settings.pollMinutes = Math.floor(minutes);
+    await this.saveSettings();
+    this.applyPolling();
   }
 
   /** 同期の後に、開いている同期管理の表示を数え直す。 */
@@ -246,6 +268,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     // 既定のオブジェクトを共有しないよう作り直す。
     this.settings.syncState = { ...(this.settings.syncState || {}) };
     this.settings.changeToken = { ...(this.settings.changeToken || {}) };
+    this.settings.unsorted = { ...(this.settings.unsorted || {}) };
   }
 
   async saveSettings(): Promise<void> {
@@ -261,10 +284,9 @@ function targetPathSegments(target: DriveTarget): string[] {
 const CREDENTIALS_URL = "https://console.cloud.google.com/apis/credentials";
 
 /** 名前で読み書きされる、宣言的コントロールに紐づく設定キー。 */
-type ControlKey = "language" | "oauthClientId" | "targetUrl" | "mountFolder" | "autoSync" | "pollMinutes";
+type ControlKey = "language" | "oauthClientId" | "targetUrl" | "mountFolder";
 
 const asString = (v: unknown): string => (typeof v === "string" ? v : "");
-const asBoolean = (v: unknown): boolean => v === true;
 
 /**
  * 宣言的設定（Obsidian 1.13+）。`containerEl` を自分で描かずに定義を返すことで、
@@ -320,17 +342,10 @@ class SettingTab extends PluginSettingTab {
       case "mountFolder":
         s.mountFolder = asString(value).trim();
         break;
-      case "autoSync":
-        s.autoSync = asBoolean(value);
-        break;
-      case "pollMinutes":
-        s.pollMinutes = typeof value === "number" && value > 0 ? Math.floor(value) : s.pollMinutes;
-        break;
     }
     await this.plugin.saveSettings();
 
-    if (key === "autoSync" || key === "pollMinutes") this.plugin.applyPolling();
-    if (key === "language" || key === "autoSync" || key === "mountFolder") this.update();
+    if (key === "language" || key === "mountFolder") this.update();
   }
 
   // -------------------------------------------------------------- 行の部品
@@ -360,7 +375,19 @@ class SettingTab extends PluginSettingTab {
 
   getSettingDefinitions(): SettingDefinitionItem[] {
     this.refreshTargetViews = [];
-    return [this.generalGroup(), this.oauthGroup(), this.targetGroup(), this.syncGroup()];
+    return [this.generalGroup(), this.oauthGroup(), this.targetGroup(), this.syncPointer()];
+  }
+
+  /**
+   * 同期の操作と設定はサイドバーに集めた（重ねて置くと、どちらが効くのか分からない）。
+   * ここに残すのは、探しに来た人を連れていく一行だけ。
+   */
+  private syncPointer(): SettingDefinitionItem {
+    return {
+      type: "group",
+      heading: t.syncHeading,
+      items: [this.buttonRow(t.panelOpen, t.syncMovedDesc, [{ label: t.panelOpen, cta: true, onClick: () => void this.plugin.openPanel() }])],
+    };
   }
 
   /** 言語が先頭。他の行がすべて読めない状態でも辿り着けるように。 */
@@ -531,47 +558,5 @@ class SettingTab extends PluginSettingTab {
       },
       (e: unknown) => this.notify(e instanceof Error ? e.message : String(e))
     );
-  }
-
-  private syncGroup(): SettingDefinitionItem {
-    const s = this.plugin.settings;
-    return {
-      type: "group",
-      heading: t.syncHeading,
-      items: [
-        this.buttonRow(
-          t.syncNowName,
-          s.lastSyncAt
-            ? t.syncNowDesc(relativeTime(s.lastSyncAt, Date.now(), t.relWords), new Date(s.lastSyncAt).toLocaleString())
-            : t.syncNowDescNever,
-          [
-            {
-              label: t.syncNowName,
-              cta: true,
-              onClick: () => {
-                void this.plugin.runSync().then(() => this.update());
-              },
-            },
-          ]
-        ),
-        {
-          name: t.autoSyncName,
-          desc: t.autoSyncDesc,
-          control: { type: "toggle", key: "autoSync" },
-        },
-        {
-          name: t.pollName,
-          desc: t.pollDesc,
-          visible: () => s.autoSync,
-          control: {
-            type: "number",
-            key: "pollMinutes",
-            min: 1,
-            step: 1,
-            validate: (v) => (Number.isFinite(v) && v >= 1 ? undefined : t.pollInvalid),
-          },
-        },
-      ],
-    };
   }
 }

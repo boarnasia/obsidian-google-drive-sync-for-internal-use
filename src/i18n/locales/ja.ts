@@ -82,6 +82,7 @@ export const ja: Strings = {
   pollDesc: "他の人の変更を確認しに行く間隔（分）。変更が無ければ 1 リクエストで終わるため、短くしても負荷は軽微です。",
   pollUnit: "分",
   pollInvalid: "1 以上の整数（分）を入力してください。",
+  syncMovedDesc: "同期の操作と設定は、右サイドバーの同期管理にあります。",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "同期管理",
@@ -100,6 +101,9 @@ export const ja: Strings = {
   panelActions: "操作",
   btnClone: "Drive から取り込む",
   btnRefresh: "状態を確認",
+  tipSyncNow: "自分の変更を Drive に送り、他の人の変更をここに取り込みます。",
+  tipClone: "Drive の内容をここに再現します。ローカルのファイルは消しません。Drive に無いファイルは下に並びます。",
+  tipRefresh: "差分を数え直すだけです。アップロードもダウンロードも削除もしません。",
   panelLastSynced: (rel) => `最終同期: ${rel}`,
   panelCheckedAt: (rel) => `確認: ${rel}`,
   panelHeldDeletes: (n) => `保留中の削除（${n} 件）`,
@@ -107,15 +111,40 @@ export const ja: Strings = {
     "承認するまで何も削除しません。承認したファイルはゴミ箱に入ります。Drive のゴミ箱は 30 日で自動削除され、その後 25 日間は管理者なら復元できます。",
   btnSelectAll: "すべて選択",
   btnApproveDeletes: (n) => `選んだ ${n} 件を削除`,
+  tipSelectAll: "上の一覧のファイルをすべて選びます。",
+  tipApproveDeletes: "選んだファイルを削除して、この同期を終わらせます。",
   panelChanges: "差分",
   panelUpload: "アップロード",
   panelDownload: "ダウンロード",
   panelConflict: "競合",
+  panelDeleteLocal: "ローカルから削除",
+  panelDeleteRemote: "Drive から削除",
   panelLocalOnly: "ローカル固有",
   panelNoChanges: "同期するものはありません。",
   panelMore: (n) => `…ほか ${n} 件`,
   cloneDone: (down, conflicts, localOnly) =>
     `clone 完了 — ↓${down}、競合コピー ${conflicts} 件、ローカル固有 ${localOnly} 件`,
+
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  localIgnoreTitle: "自分だけの除外規則",
+  localIgnoreBody:
+    "ここに書いた規則は自分の Vault にだけ効きます。このファイルは同期されません。書式は _Sync/ignore.md と同じです。# はコメント、* ? ** はグロブ、先頭の / は同期ルート固定、末尾の / はフォルダ、! は打ち消しです。",
+  panelUnsorted: (n) => `未決定（${n} 件）`,
+  panelLocalOnlyDesc: "Drive に無いファイルです。決めるまで、ここに留まり、上がりません。",
+  btnShare: "共有",
+  btnTrash: "削除",
+  btnShareAll: (n) => `${n} 件すべて共有`,
+  btnTrashAll: (n) => `${n} 件すべて削除`,
+  tipShare: "このファイルを Drive に上げます。チームに届きます。",
+  tipTrash: "このファイルをゴミ箱に送ります。Drive には触れません。元から Drive に無いファイルです。",
+  tipShareAll: "一覧のファイルをすべて Drive に上げます。",
+  tipTrashAll: "一覧のファイルをすべてゴミ箱に送ります。",
+  confirmTrashTitle: "これらのファイルを削除しますか？",
+  confirmTrashBody: (n) =>
+    `${n} 件をゴミ箱に送ります。Drive には無いファイルなので、これが唯一の写しです。ゴミ箱からは戻せます。`,
+  btnCancel: "取り消し",
+  sharedDone: (n) => `${n} 件を共有しました`,
+  trashedDone: (n) => `${n} 件をゴミ箱に送りました`,
 
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:

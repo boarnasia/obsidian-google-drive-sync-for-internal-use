@@ -83,6 +83,7 @@ export const fr: Strings = {
     "Minutes entre deux vérifications des changements des autres. Sans changement, une vérification n’est qu’une requête légère.",
   pollUnit: "min",
   pollInvalid: "Saisissez un nombre entier de minutes, 1 ou plus.",
+  syncMovedDesc: "Les actions et les réglages de synchronisation se trouvent dans le gestionnaire, dans la barre latérale droite.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "Gestion de la synchronisation",
@@ -101,6 +102,9 @@ export const fr: Strings = {
   panelActions: "Actions",
   btnClone: "Récupérer depuis Drive",
   btnRefresh: "Voir l’état",
+  tipSyncNow: "Envoie vos modifications vers Drive et récupère ici celles des autres.",
+  tipClone: "Récupère ici la copie de Drive. Rien n’est supprimé en local ; les fichiers absents de Drive sont listés ci-dessous.",
+  tipRefresh: "Recompte les différences. Rien n’est envoyé, téléchargé ni supprimé.",
   panelLastSynced: (rel) => `Dernière synchronisation : ${rel}`,
   panelCheckedAt: (rel) => `Vérifié : ${rel}`,
   panelHeldDeletes: (n) => `Suppressions en attente (${n})`,
@@ -108,15 +112,39 @@ export const fr: Strings = {
     "Rien n’est supprimé tant que vous ne l’approuvez pas. Les fichiers approuvés vont à la corbeille : Drive la vide au bout de 30 jours, puis un administrateur peut encore les restaurer pendant 25 jours.",
   btnSelectAll: "Tout sélectionner",
   btnApproveDeletes: (n) => `Supprimer les ${n} sélectionnés`,
+  tipSelectAll: "Coche tous les fichiers de la liste ci-dessus.",
+  tipApproveDeletes: "Supprime les fichiers cochés et termine cette synchronisation.",
   panelChanges: "Changements",
   panelUpload: "Envoi",
   panelDownload: "Téléchargement",
   panelConflict: "Conflit",
+  panelDeleteLocal: "Supprimer en local",
+  panelDeleteRemote: "Supprimer sur Drive",
   panelLocalOnly: "Local uniquement",
   panelNoChanges: "Rien à synchroniser.",
   panelMore: (n) => `…et ${n} de plus`,
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminé — ↓${down}, ${conflicts} copie(s) de conflit, ${localOnly} fichier(s) local uniquement`,
+
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  localIgnoreTitle: "Vos propres règles d’exclusion",
+  localIgnoreBody:
+    "Les règles écrites ici ne valent que pour votre coffre ; ce fichier n’est jamais synchronisé. Même syntaxe que _Sync/ignore.md : # pour un commentaire, * ? ** comme jokers, un / initial ancre à la racine de synchronisation, un / final vise les dossiers, ! annule une exclusion.",
+  panelUnsorted: (n) => `Pas encore décidé (${n})`,
+  panelLocalOnlyDesc: "Drive n’a pas ces fichiers. Chacun reste ici, non envoyé, tant que vous n’avez pas décidé.",
+  btnShare: "Partager",
+  btnTrash: "Supprimer",
+  btnShareAll: (n) => `Partager les ${n}`,
+  btnTrashAll: (n) => `Supprimer les ${n}`,
+  tipShare: "Envoie ce fichier sur Drive, pour que l’équipe l’ait.",
+  tipTrash: "Met ce fichier à la corbeille. Drive n’est pas touché : il n’a jamais eu ce fichier.",
+  tipShareAll: "Envoie sur Drive tous les fichiers de la liste.",
+  tipTrashAll: "Met à la corbeille tous les fichiers de la liste.",
+  confirmTrashTitle: "Supprimer ces fichiers ?",
+  confirmTrashBody: (n) => `${n} fichier(s) partent à la corbeille. Ils ne sont pas sur Drive : c’est l’unique copie. Vous pouvez encore les récupérer depuis la corbeille.`,
+  btnCancel: "Annuler",
+  sharedDone: (n) => `${n} fichier(s) partagé(s)`,
+  trashedDone: (n) => `${n} fichier(s) mis à la corbeille`,
 
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:

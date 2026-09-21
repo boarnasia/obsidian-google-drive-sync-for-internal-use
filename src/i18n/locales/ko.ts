@@ -82,6 +82,7 @@ export const ko: Strings = {
   pollDesc: "다른 사람의 변경 사항을 확인하는 간격(분)입니다. 변경이 없으면 가벼운 요청 한 번으로 끝납니다.",
   pollUnit: "분",
   pollInvalid: "1 이상의 정수(분)를 입력하세요.",
+  syncMovedDesc: "동기화 조작과 설정은 오른쪽 사이드바의 동기화 관리에 있습니다.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "동기화 관리",
@@ -100,6 +101,9 @@ export const ko: Strings = {
   panelActions: "작업",
   btnClone: "Drive에서 가져오기",
   btnRefresh: "상태 확인",
+  tipSyncNow: "내 변경 사항을 Drive로 보내고, 다른 사람의 변경 사항을 여기로 가져옵니다.",
+  tipClone: "Drive의 내용을 여기에 재현합니다. 로컬 파일은 지우지 않습니다. Drive에 없는 파일은 아래에 나열됩니다.",
+  tipRefresh: "차이를 다시 셉니다. 업로드도 다운로드도 삭제도 하지 않습니다.",
   panelLastSynced: (rel) => `마지막 동기화: ${rel}`,
   panelCheckedAt: (rel) => `확인: ${rel}`,
   panelHeldDeletes: (n) => `보류된 삭제 (${n}건)`,
@@ -107,15 +111,39 @@ export const ko: Strings = {
     "승인하기 전에는 아무것도 삭제하지 않습니다. 승인한 파일은 휴지통으로 갑니다. Drive 휴지통은 30일 후 자동으로 비워지며, 그 뒤 25일간은 관리자가 복원할 수 있습니다.",
   btnSelectAll: "모두 선택",
   btnApproveDeletes: (n) => `선택한 ${n}건 삭제`,
+  tipSelectAll: "위 목록의 파일을 모두 선택합니다.",
+  tipApproveDeletes: "선택한 파일을 삭제하고 이번 동기화를 끝냅니다.",
   panelChanges: "변경 사항",
   panelUpload: "업로드",
   panelDownload: "다운로드",
   panelConflict: "충돌",
+  panelDeleteLocal: "로컬에서 삭제",
+  panelDeleteRemote: "Drive에서 삭제",
   panelLocalOnly: "로컬 전용",
   panelNoChanges: "동기화할 항목이 없습니다.",
   panelMore: (n) => `…외 ${n}건`,
   cloneDone: (down, conflicts, localOnly) =>
     `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
+
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  localIgnoreTitle: "나만의 제외 규칙",
+  localIgnoreBody:
+    "여기에 쓴 규칙은 내 보관소에만 적용되며, 이 파일은 동기화되지 않습니다. 문법은 _Sync/ignore.md와 같습니다. #은 주석, * ? **는 글롭, 앞의 /는 동기화 루트 고정, 뒤의 /는 폴더, !는 해제입니다.",
+  panelUnsorted: (n) => `아직 결정하지 않음 (${n}건)`,
+  panelLocalOnlyDesc: "Drive에 없는 파일입니다. 결정할 때까지 여기에 남고, 올라가지 않습니다.",
+  btnShare: "공유",
+  btnTrash: "삭제",
+  btnShareAll: (n) => `${n}건 모두 공유`,
+  btnTrashAll: (n) => `${n}건 모두 삭제`,
+  tipShare: "이 파일을 Drive에 올립니다. 팀에 전달됩니다.",
+  tipTrash: "이 파일을 휴지통으로 보냅니다. Drive는 건드리지 않습니다. 원래 Drive에 없는 파일입니다.",
+  tipShareAll: "목록의 파일을 모두 Drive에 올립니다.",
+  tipTrashAll: "목록의 파일을 모두 휴지통으로 보냅니다.",
+  confirmTrashTitle: "이 파일들을 삭제할까요?",
+  confirmTrashBody: (n) => `${n}건을 휴지통으로 보냅니다. Drive에 없는 파일이라 이것이 유일한 사본입니다. 휴지통에서는 되돌릴 수 있습니다.`,
+  btnCancel: "취소",
+  sharedDone: (n) => `${n}건을 공유했습니다`,
+  trashedDone: (n) => `${n}건을 휴지통으로 보냈습니다`,
 
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:

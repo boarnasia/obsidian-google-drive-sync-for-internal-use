@@ -84,6 +84,7 @@ export const en = {
     "Minutes between checks for other people's changes. A check is a single cheap request when nothing has changed.",
   pollUnit: "minutes",
   pollInvalid: "Enter a whole number of minutes, 1 or more.",
+  syncMovedDesc: "The sync controls and settings live in the sync manager, in the right sidebar.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "Sync manager",
@@ -102,6 +103,9 @@ export const en = {
   panelActions: "Actions",
   btnClone: "Pull from Drive",
   btnRefresh: "Check status",
+  tipSyncNow: "Send your changes to Drive and bring other people's changes here.",
+  tipClone: "Bring the Drive copy here. Nothing local is deleted; files Drive does not have are listed below.",
+  tipRefresh: "Count the differences again. Nothing is uploaded, downloaded or deleted.",
   panelLastSynced: (rel: string): string => `Last synced: ${rel}`,
   panelCheckedAt: (rel: string): string => `Checked: ${rel}`,
   panelHeldDeletes: (n: number): string => `Deletions on hold (${n})`,
@@ -109,15 +113,40 @@ export const en = {
     "Nothing is deleted until you approve it. Approved files go to the trash: Drive empties its trash after 30 days, and an admin can still restore them for 25 days after that.",
   btnSelectAll: "Select all",
   btnApproveDeletes: (n: number): string => `Delete ${n} selected`,
+  tipSelectAll: "Tick every file in the list above.",
+  tipApproveDeletes: "Delete the ticked files and finish this sync.",
   panelChanges: "Changes",
   panelUpload: "Upload",
   panelDownload: "Download",
   panelConflict: "Conflict",
+  panelDeleteLocal: "Delete locally",
+  panelDeleteRemote: "Delete on Drive",
   panelLocalOnly: "Local only",
   panelNoChanges: "Nothing to sync.",
   panelMore: (n: number): string => `…and ${n} more`,
   cloneDone: (down: number, conflicts: number, localOnly: number): string =>
     `clone done — ↓${down}, ${conflicts} conflict copy/copies, ${localOnly} local-only file(s)`,
+
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  localIgnoreTitle: "Your own ignore rules",
+  localIgnoreBody:
+    "Rules here apply only to your own vault; this file is never synced. Same syntax as _Sync/ignore.md: # is a comment, * ? ** are globs, a leading / anchors to the sync root, a trailing / matches folders, ! un-ignores.",
+  panelUnsorted: (n: number): string => `Not decided yet (${n})`,
+  panelLocalOnlyDesc: "Drive does not have these files. Each one stays here, unsent, until you decide.",
+  btnShare: "Share",
+  btnTrash: "Delete",
+  btnShareAll: (n: number): string => `Share all ${n}`,
+  btnTrashAll: (n: number): string => `Delete all ${n}`,
+  tipShare: "Upload this file to Drive, so the team gets it.",
+  tipTrash: "Move this file to the trash. Drive is not touched — it never had this file.",
+  tipShareAll: "Upload every file in the list to Drive.",
+  tipTrashAll: "Move every file in the list to the trash.",
+  confirmTrashTitle: "Delete these files?",
+  confirmTrashBody: (n: number): string =>
+    `${n} file(s) go to the trash. They are not on Drive, so this is the only copy — you can still restore them from the trash.`,
+  btnCancel: "Cancel",
+  sharedDone: (n: number): string => `${n} file(s) shared`,
+  trashedDone: (n: number): string => `${n} file(s) moved to the trash`,
 
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient: "No OAuth client configured — enter the client ID and secret in settings, then connect.",

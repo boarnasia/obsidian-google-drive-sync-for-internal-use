@@ -306,4 +306,25 @@ describe("escapeDriveQuery", () => {
     drive.seed("O'Brien's.md", "x");
     expect(dec((await provider("").get("O'Brien's.md")) as ArrayBuffer)).toBe("x");
   });
+
+  /*
+   * 同期ルートの ID は利用者が貼った URL から来る。q を閉じる文字を素のまま
+   * 埋めると、`in parents` の縛りが外れて同期ルートの外まで列挙されうる。
+   */
+  it("同期ルートの ID も escape してから q に入れる", async () => {
+    const seen: string[] = [];
+    const spy = new FakeDrive(ROOT);
+    const rogue = new DriveProvider(
+      { folderId: "root' or name!='", driveId: "" },
+      async () => "tok",
+      async (m, url, h, b) => {
+        if (url.includes("/files?q=")) seen.push(decodeURIComponent(new URL(url).searchParams.get("q") as string));
+        return spy.http(m, url, h, b);
+      }
+    );
+
+    await rogue.list();
+
+    expect(seen[0]).toBe("'root\\' or name!=\\'' in parents and trashed=false");
+  });
 });

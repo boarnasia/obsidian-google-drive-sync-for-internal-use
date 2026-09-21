@@ -83,6 +83,7 @@ export const de: Strings = {
     "Minuten zwischen den Prüfungen auf Änderungen anderer. Ohne Änderungen ist eine Prüfung nur eine einzige leichte Anfrage.",
   pollUnit: "Minuten",
   pollInvalid: "Gib eine ganze Zahl von Minuten ein, mindestens 1.",
+  syncMovedDesc: "Die Aktionen und Einstellungen zur Synchronisierung stehen im Sync-Manager in der rechten Seitenleiste.",
 
   // ------------------------------------------------------------ 同期管理パネル
   panelTitle: "Synchronisierungsverwaltung",
@@ -101,6 +102,9 @@ export const de: Strings = {
   panelActions: "Aktionen",
   btnClone: "Von Drive holen",
   btnRefresh: "Status prüfen",
+  tipSyncNow: "Schickt deine Änderungen zu Drive und holt die der anderen hierher.",
+  tipClone: "Holt die Drive-Kopie hierher. Lokal wird nichts gelöscht; Dateien, die Drive nicht hat, stehen unten.",
+  tipRefresh: "Zählt die Unterschiede neu. Es wird nichts hochgeladen, heruntergeladen oder gelöscht.",
   panelLastSynced: (rel) => `Zuletzt synchronisiert: ${rel}`,
   panelCheckedAt: (rel) => `Geprüft: ${rel}`,
   panelHeldDeletes: (n) => `Zurückgehaltene Löschungen (${n})`,
@@ -108,15 +112,39 @@ export const de: Strings = {
     "Es wird nichts gelöscht, bis du es bestätigst. Bestätigte Dateien landen im Papierkorb: Drive leert ihn nach 30 Tagen, danach kann ein Administrator sie noch 25 Tage wiederherstellen.",
   btnSelectAll: "Alle auswählen",
   btnApproveDeletes: (n) => `${n} ausgewählte löschen`,
+  tipSelectAll: "Wählt alle Dateien aus der Liste oben aus.",
+  tipApproveDeletes: "Löscht die ausgewählten Dateien und beendet diese Synchronisierung.",
   panelChanges: "Änderungen",
   panelUpload: "Hochladen",
   panelDownload: "Herunterladen",
   panelConflict: "Konflikt",
+  panelDeleteLocal: "Lokal löschen",
+  panelDeleteRemote: "In Drive löschen",
   panelLocalOnly: "Nur lokal",
   panelNoChanges: "Nichts zu synchronisieren.",
   panelMore: (n) => `…und ${n} weitere`,
   cloneDone: (down, conflicts, localOnly) =>
     `clone fertig — ↓${down}, ${conflicts} Konfliktkopie(n), ${localOnly} nur lokale Datei(en)`,
+
+  // ------------------------------------------------ ローカル固有ファイルの分類
+  localIgnoreTitle: "Deine eigenen Ausschlussregeln",
+  localIgnoreBody:
+    "Die Regeln hier gelten nur für deinen Tresor; diese Datei wird nie synchronisiert. Gleiche Syntax wie _Sync/ignore.md: # ist ein Kommentar, * ? ** sind Platzhalter, ein führender / bindet an die Synchronisierungswurzel, ein abschließender / trifft Ordner, ! hebt einen Ausschluss auf.",
+  panelUnsorted: (n) => `Noch nicht entschieden (${n})`,
+  panelLocalOnlyDesc: "Drive hat diese Dateien nicht. Jede bleibt hier und wird nicht hochgeladen, bis du entscheidest.",
+  btnShare: "Teilen",
+  btnTrash: "Löschen",
+  btnShareAll: (n) => `Alle ${n} teilen`,
+  btnTrashAll: (n) => `Alle ${n} löschen`,
+  tipShare: "Lädt diese Datei zu Drive hoch, damit das Team sie bekommt.",
+  tipTrash: "Verschiebt diese Datei in den Papierkorb. Drive bleibt unberührt — dort gab es diese Datei nie.",
+  tipShareAll: "Lädt alle Dateien der Liste zu Drive hoch.",
+  tipTrashAll: "Verschiebt alle Dateien der Liste in den Papierkorb.",
+  confirmTrashTitle: "Diese Dateien löschen?",
+  confirmTrashBody: (n) => `${n} Datei(en) wandern in den Papierkorb. Sie liegen nicht auf Drive, das hier ist also die einzige Kopie — aus dem Papierkorb kannst du sie noch zurückholen.`,
+  btnCancel: "Abbrechen",
+  sharedDone: (n) => `${n} Datei(en) geteilt`,
+  trashedDone: (n) => `${n} Datei(en) in den Papierkorb verschoben`,
 
   // ---------------------------------------------------------- 利用者に出る失敗
   errNoOauthClient:

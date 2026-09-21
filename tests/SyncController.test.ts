@@ -269,8 +269,210 @@ describe("接続の解除", () => {
   });
 });
 
+describe("Vault 内の設定ファイル", () => {
+  it("clone の後に、無いものだけ作る", async () => {
+    drive.seed("a.md", "x");
+    const c = connected();
+
+    await c.clone();
+
+    expect(vault.contentOf("_Sync/ignore.md")).toContain("Shared ignore rules");
+    expect(vault.contentOf("_Sync/README.md")).toContain("Google Drive Sync");
+    expect(vault.contentOf("_SyncLocal/ignore.md")).toBeDefined();
+  });
+
+  it("すでにある設定ファイルは上書きしない", async () => {
+    vault.seed("_Sync/ignore.md", "# チームの決めごと\n下書き/");
+    drive.seed("a.md", "x");
+
+    await connected().clone();
+
+    expect(vault.contentOf("_Sync/ignore.md")).toBe("# チームの決めごと\n下書き/");
+  });
+
+  it("clone を通らなければ作らない（有効化しただけの Vault を汚さない）", async () => {
+    vault.seed("a.md", "x");
+
+    await connected().sync();
+
+    expect(vault.contentOf("_Sync/README.md")).toBeUndefined();
+  });
+
+  it("ローカル固有ファイルは未整理として控える", async () => {
+    vault.seed("私のメモ.md", "私的");
+    drive.seed("a.md", "x");
+
+    await connected().clone();
+
+    expect(settings.unsorted[ROOT]).toEqual(["私のメモ.md"]);
+  });
+});
+
+describe("除外規則", () => {
+  it("チームの規則に当たるファイルはアップロードしない", async () => {
+    vault.seed("_Sync/ignore.md", "下書き/");
+    vault.seed("下書き/秘密.md", "私的");
+    vault.seed("議事録.md", "共有");
+
+    const report = await connected().sync();
+
+    expect(report.uploaded).not.toContain("下書き/秘密.md");
+    expect(Object.keys(drive.contents())).not.toContain("下書き/秘密.md");
+    // 規則そのものはチームに配る。除外できてしまうと、以後ルールが届かなくなる。
+    expect(report.uploaded).toContain("_Sync/ignore.md");
+  });
+
+  it("各自の規則も効く", async () => {
+    vault.seed("_SyncLocal/ignore.md", "*.png");
+    vault.seed("図.png", "画像");
+    vault.seed("議事録.md", "共有");
+
+    const report = await connected().sync();
+
+    expect(report.uploaded).toEqual(["議事録.md"]);
+  });
+
+  it("各自の規則ファイルはチームに配らない", async () => {
+    vault.seed("_SyncLocal/ignore.md", "# 自分用");
+    vault.seed("a.md", "x");
+
+    await connected().sync();
+
+    expect(Object.keys(drive.contents())).toEqual(["a.md"]);
+  });
+});
+
+describe("ローカル固有ファイルの分類", () => {
+  const unsorted = (...paths: string[]): void => {
+    settings.unsorted[ROOT] = paths;
+  };
+
+  it("「共有」はアップロードし、保留から外れる", async () => {
+    vault.seed("私のメモ.md", "私的");
+    unsorted("私のメモ.md");
+
+    const report = await connected().shareLocalFiles(["私のメモ.md"]);
+
+    expect(report.uploaded).toContain("私のメモ.md");
+    expect(drive.contents()).toHaveProperty("私のメモ.md", "私的");
+    expect(settings.unsorted[ROOT]).toEqual([]);
+  });
+
+  it("「削除」はローカルのゴミ箱へ送る（リモートには触らない）", async () => {
+    vault.seed("いらない.md", "ごみ");
+    unsorted("いらない.md");
+
+    const result = await connected().trashLocalFiles(["いらない.md"]);
+
+    expect(result.trashed).toEqual(["いらない.md"]);
+    expect(vault.contentOf("いらない.md")).toBeUndefined();
+    expect(Object.keys(drive.contents())).toEqual([]);
+    expect(settings.unsorted[ROOT]).toEqual([]);
+  });
+
+  it("決めていないファイルは、上げも消しもしない", async () => {
+    vault.seed("迷い中.md", "未定");
+    unsorted("迷い中.md");
+
+    const report = await connected().sync();
+
+    expect(report.heldUploads).toContain("迷い中.md");
+    expect(vault.contentOf("迷い中.md")).toBe("未定");
+    expect(Object.keys(drive.contents())).toEqual([]);
+    expect(settings.unsorted[ROOT]).toEqual(["迷い中.md"]);
+  });
+
+  it("未整理が残っていても、他のファイルは上がる", async () => {
+    vault.seed("迷い中.md", "未定");
+    vault.seed("これも新しい.md", "新規");
+    unsorted("迷い中.md");
+
+    const report = await connected().sync();
+
+    expect(report.heldUploads).toContain("迷い中.md");
+    expect(Object.keys(drive.contents())).toContain("これも新しい.md");
+  });
+
+  it("消えたファイルの保留は、次の同期で落ちる", async () => {
+    unsorted("もう無い.md");
+
+    await connected().sync();
+
+    expect(settings.unsorted[ROOT]).toEqual([]);
+  });
+});
+
 describe("同期先の確認", () => {
   it("未接続では確認しない", async () => {
     await expect(controller().lookupTarget("https://drive.google.com/drive/folders/x")).rejects.toThrow();
+  });
+});
+
+/*
+ * sync・clone・分類は、どれも最後に同じ syncState[folderId] を書く。重なると
+ * 後から終わった方が先の結果を丸ごと捨て、ベースラインが両側と食い違う——次の
+ * 同期はそれを大量削除として読む。呼び出し元はサイドバー・ポーリング・ファイル
+ * 監視と複数あるので、入口ごとではなく SyncController で一本化する。
+ */
+describe("ベースラインを書く操作は重ならない", () => {
+  it("同期中の clone は断る", async () => {
+    vault.seed("A.md", "a");
+    const c = connected();
+
+    const first = c.sync();
+    await expect(c.clone()).rejects.toThrow();
+    await first;
+  });
+
+  it("clone 中の同期は断る", async () => {
+    drive.seed("B.md", "b");
+    const c = connected();
+
+    const first = c.clone();
+    await expect(c.sync()).rejects.toThrow();
+    await first;
+  });
+
+  it("同期中の「共有」「削除」も断る", async () => {
+    vault.seed("迷い中.md", "未定");
+    settings.unsorted[ROOT] = ["迷い中.md"];
+    const c = connected();
+
+    const first = c.sync();
+    await expect(c.shareLocalFiles(["迷い中.md"])).rejects.toThrow();
+    await expect(c.trashLocalFiles(["迷い中.md"])).rejects.toThrow();
+    await first;
+
+    // 断られただけで、保留も Vault もそのまま。
+    expect(settings.unsorted[ROOT]).toEqual(["迷い中.md"]);
+    expect(vault.contentOf("迷い中.md")).toBe("未定");
+  });
+
+  it("終わった後は次の操作が通る（鍵が残らない）", async () => {
+    vault.seed("A.md", "a");
+    const c = connected();
+
+    await c.sync();
+    await expect(c.clone()).resolves.toBeDefined();
+  });
+
+  it("失敗した操作も鍵を返す", async () => {
+    const c = connected();
+    settings.target = null;
+
+    await expect(c.sync()).rejects.toThrow();
+    settings.target = TARGET;
+    await expect(c.sync()).resolves.toBeDefined();
+  });
+
+  /** 「共有」は内部で同期まで進む。自分の鍵で自分を締め出さないこと。 */
+  it("「共有」は自分の同期で詰まらない", async () => {
+    vault.seed("迷い中.md", "決めた");
+    settings.unsorted[ROOT] = ["迷い中.md"];
+
+    const report = await connected().shareLocalFiles(["迷い中.md"]);
+
+    expect(report.uploaded).toContain("迷い中.md");
+    expect(settings.unsorted[ROOT]).toEqual([]);
   });
 });

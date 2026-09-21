@@ -15,6 +15,7 @@ const plan = (over: Partial<SyncPlan> = {}): SyncPlan => ({
   deleteLocal: [],
   deleteRemote: [],
   localOnly: [],
+  unsorted: [],
   blocked: [],
   deleteLimit: 10,
   ...over,
@@ -23,14 +24,17 @@ const plan = (over: Partial<SyncPlan> = {}): SyncPlan => ({
 /** ビューが触るぶんだけのプラグイン。 */
 function fakePlugin(over: { plan?: SyncPlan; ready?: boolean; connected?: boolean } = {}) {
   return {
-    settings: { lastSyncAt: null },
+    settings: { lastSyncAt: null, autoSync: true },
     controller: {
       connected: over.connected ?? true,
       ready: over.ready ?? true,
       plan: vi.fn(async () => over.plan ?? plan()),
       clone: vi.fn(async () => emptyReport()),
+      shareLocalFiles: vi.fn(async (_paths: readonly string[]) => emptyReport()),
+      trashLocalFiles: vi.fn(async (paths: readonly string[]) => ({ trashed: [...paths], errors: [] as string[] })),
     },
     runSync: vi.fn(async (_opts?: { approvedDeletes?: ReadonlySet<string> }) => undefined),
+    setAutoSync: vi.fn(async (_on: boolean) => undefined),
   };
 }
 
@@ -39,8 +43,12 @@ interface Panel {
   refresh(): Promise<void>;
   plan: SyncPlan | null;
   approved: Set<string>;
+  heldDeletes(plan: SyncPlan): string[];
+  confirmTrashAll(paths: string[]): void;
   runClone(): void;
   approveDeletes(): void;
+  share(paths: string[]): void;
+  trash(paths: string[]): void;
 }
 
 const panelOf = (plugin: ReturnType<typeof fakePlugin>): Panel =>
@@ -82,7 +90,7 @@ describe("数え直し", () => {
   });
 
   it("対象でなくなった削除の選択は落とす", async () => {
-    plugin = fakePlugin({ plan: plan({ deleteRemote: ["b.md"] }) });
+    plugin = fakePlugin({ plan: plan({ blocked: ["delete-guard"], deleteRemote: ["b.md"] }) });
     const panel = panelOf(plugin);
     panel.approved.add("a.md");
     panel.approved.add("b.md");
@@ -90,6 +98,40 @@ describe("数え直し", () => {
     await panel.refresh();
 
     expect([...panel.approved]).toEqual(["b.md"]);
+  });
+
+  it("承認の一覧から消えたら選択も落とす", async () => {
+    // 上限に当たっていなければ、この削除は承認を待っていない。
+    plugin = fakePlugin({ plan: plan({ deleteRemote: ["b.md"] }) });
+    const panel = panelOf(plugin);
+    panel.approved.add("b.md");
+
+    await panel.refresh();
+
+    expect(panel.approved.size).toBe(0);
+  });
+});
+
+/*
+ * 承認を求めるのは、安全上限に当たって実際に保留されている削除だけである。
+ * 上限内の削除まで並べると、押さなければ消えないように読め、放っておけば
+ * 止まっていると誤解させる。
+ */
+describe("承認を待っている削除", () => {
+  const panel = (): Panel => panelOf(fakePlugin());
+
+  it("上限に当たっていれば、両側の削除を並べる", () => {
+    const p = plan({ blocked: ["delete-guard"], deleteRemote: ["r.md"], deleteLocal: ["l.md"] });
+    expect(panel().heldDeletes(p)).toEqual(["r.md", "l.md"]);
+  });
+
+  it("上限内の削除は並べない（承認を待っていない）", () => {
+    expect(panel().heldDeletes(plan({ deleteRemote: ["r.md"], deleteLocal: ["l.md"] }))).toEqual([]);
+  });
+
+  it("別の理由で止まっているだけなら並べない", () => {
+    const p = plan({ blocked: ["vault-empty"], deleteRemote: ["r.md"] });
+    expect(panel().heldDeletes(p)).toEqual([]);
   });
 });
 
@@ -117,6 +159,38 @@ describe("削除の承認", () => {
     await vi.waitFor(() => expect(plugin.runSync).toHaveBeenCalled());
 
     expect(panel.approved.size).toBe(0);
+  });
+});
+
+describe("ローカル固有ファイルの分類", () => {
+  it("「共有」は選んだパスだけを渡し、差分を数え直す", async () => {
+    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md", "b.md"], unsorted: ["a.md", "b.md"] }) });
+    const panel = panelOf(plugin);
+    await panel.refresh();
+
+    panel.share(["a.md"]);
+    await vi.waitFor(() => expect(plugin.controller.shareLocalFiles).toHaveBeenCalledWith(["a.md"]));
+    await vi.waitFor(() => expect(plugin.controller.plan).toHaveBeenCalledTimes(2));
+  });
+
+  it("「削除」はローカルだけを消し、同期を走らせない", async () => {
+    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md"], unsorted: ["a.md"] }) });
+    const panel = panelOf(plugin);
+    await panel.refresh();
+
+    panel.trash(["a.md"]);
+    await vi.waitFor(() => expect(plugin.controller.trashLocalFiles).toHaveBeenCalledWith(["a.md"]));
+    expect(plugin.runSync).not.toHaveBeenCalled();
+  });
+
+  it("一括削除は、確認を挟むまで何も消さない", async () => {
+    plugin = fakePlugin({ plan: plan({ localOnly: ["a.md"], unsorted: ["a.md"] }) });
+    const panel = panelOf(plugin);
+    await panel.refresh();
+
+    panel.confirmTrashAll(["a.md"]);
+
+    expect(plugin.controller.trashLocalFiles).not.toHaveBeenCalled();
   });
 });
 

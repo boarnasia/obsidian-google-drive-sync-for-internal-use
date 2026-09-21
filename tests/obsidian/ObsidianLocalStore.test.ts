@@ -178,3 +178,66 @@ describe("削除", () => {
     expect(v.trashed).toEqual([]);
   });
 });
+
+/*
+ * 一覧はハッシュのために中身を読む。全件を一度に読むと、初回同期で Vault が
+ * まるごと同時にメモリに載る（数百件の添付を抱えた Vault で効く）。
+ */
+describe("一覧の読み方", () => {
+  /** 読み取りを握って離さない偽物。同時に何件走っているかを数える。 */
+  function gatedReads() {
+    const release: (() => void)[] = [];
+    let live = 0;
+    let peak = 0;
+    const original = v.readBinary.bind(v);
+    v.readBinary = async (file) => {
+      live++;
+      peak = Math.max(peak, live);
+      await new Promise<void>((r) => release.push(r));
+      live--;
+      return original(file);
+    };
+    return {
+      peak: () => peak,
+      /** 一覧が終わるまで、待っている読み取りを繰り返し進める。 */
+      async drive(listing: Promise<unknown>): Promise<void> {
+        let done = false;
+        void listing.then(() => (done = true));
+        for (let i = 0; i < 500 && !done; i++) {
+          release.splice(0).forEach((r) => r());
+          await new Promise((r) => setTimeout(r, 0));
+        }
+      },
+    };
+  }
+
+  it("同時に読む件数に上限がある", async () => {
+    for (let i = 0; i < 50; i++) v.seed(`n${i}.md`, String(i));
+    const gate = gatedReads();
+
+    const listing = store("").list();
+    await gate.drive(listing);
+    await listing;
+
+    expect(gate.peak()).toBeLessThanOrEqual(8);
+    expect(gate.peak()).toBeGreaterThan(1); // 1 件ずつ待つのも遅すぎる
+  });
+
+  it("姿が変わっていないファイルは読まない", async () => {
+    v.seed("a.md", "x");
+    v.seed("b.md", "y");
+    const first = await store("").list();
+    v.readPaths.length = 0;
+
+    const known = new Map(first.map((f) => [f.path, { hash: f.hash, mtime: f.mtime, size: f.size }]));
+    const again = await store("").list(known);
+
+    expect(v.readPaths).toEqual([]);
+    expect(again.map((f) => f.path)).toEqual(["a.md", "b.md"]);
+  });
+
+  it("読み終わった順ではなくパス順で返す", async () => {
+    for (const name of ["c.md", "a.md", "b.md"]) v.seed(name, name);
+    expect((await store("").list()).map((f) => f.path)).toEqual(["a.md", "b.md", "c.md"]);
+  });
+});

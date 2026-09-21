@@ -103,17 +103,24 @@ afterEach(() => {
   w.setTimeout = realSetTimeout;
 });
 
+/** 認可 URL に載った state。本物の戻りはこれを持って返ってくる。 */
+let authState = "";
+
 /** ブラウザを開くところまで進める（チャレンジの計算は Web Crypto の非同期処理）。 */
 async function untilBrowserOpens(): Promise<URL> {
   for (let i = 0; i < 50 && opened.length === 0; i++) {
     await new Promise((r) => realSetTimeout(r, 0));
   }
-  return new URL(opened[0]);
+  const url = new URL(opened[0]);
+  authState = url.searchParams.get("state") ?? "";
+  return url;
 }
 
-/** 認可サーバーからの戻りを模す。 */
-function redirect(query: string): void {
-  (http.state.handler as (req: { url?: string }, r: Res) => void)({ url: query }, res());
+/** 認可サーバーからの戻りを模す。state を書いていなければ本物のものを足す。 */
+function redirect(query: string, r: Res = res()): Res {
+  const url = query.includes("state=") ? query : `${query}&state=${encodeURIComponent(authState)}`;
+  (http.state.handler as (req: { url?: string }, x: Res) => void)({ url }, r);
+  return r;
 }
 
 describe("ブラウザを開くところまで", () => {
@@ -223,6 +230,54 @@ describe("戻ってきたとき", () => {
 
     redirect("/?code=abc"); // 本命は後から来る
     await p;
+  });
+
+  /*
+   * ループバックのポートは同じ端末のどのプロセスからも、踏まされたページからも
+   * 叩ける。state が合わない戻りを受け入れると、攻撃者のアカウントの認可コードを
+   * 押し込まれ、利用者の Vault が攻撃者の Drive に繋がる（RFC 6749 §10.12）。
+   */
+  it("state が合わない戻りは受け付けず、サーバーも閉じない", async () => {
+    const p = googleLoginLoopback(OPTS);
+    await untilBrowserOpens();
+
+    const r = redirect("/?code=attacker&state=wrong");
+
+    expect(r.writeHead).toHaveBeenCalledWith(400);
+    expect(http.state.closed).toBe(0);
+    expect(requestUrl as unknown as Mock).not.toHaveBeenCalled();
+
+    redirect("/?code=abc"); // 本物は後から届く
+    await expect(p).resolves.toMatchObject({ accessToken: "at-1" });
+  });
+
+  it("state の無い戻りも受け付けない", async () => {
+    const p = googleLoginLoopback(OPTS);
+    await untilBrowserOpens();
+
+    const r = redirect("/?code=abc&state=");
+
+    expect(r.writeHead).toHaveBeenCalledWith(400);
+    expect(http.state.closed).toBe(0);
+
+    redirect("/?code=abc");
+    await p;
+  });
+
+  it("毎回違う state を使う（前回の戻りを使い回せない）", async () => {
+    const first = googleLoginLoopback(OPTS);
+    const a = (await untilBrowserOpens()).searchParams.get("state");
+    redirect("/?code=abc");
+    await first;
+
+    opened = [];
+    const second = googleLoginLoopback(OPTS);
+    const b = (await untilBrowserOpens()).searchParams.get("state");
+    redirect("/?code=abc");
+    await second;
+
+    expect(a).toBeTruthy();
+    expect(b).not.toBe(a);
   });
 });
 
