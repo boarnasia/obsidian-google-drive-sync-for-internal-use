@@ -123,7 +123,7 @@ export const de: Strings = {
   // ------------------------------------------------ ローカル固有ファイルの分類
   localIgnoreTitle: "Deine eigenen Ausschlussregeln",
   localIgnoreBody:
-    "Die Regeln hier gelten nur für deinen Tresor; diese Datei wird nie synchronisiert. Gleiche Syntax wie _Sync/ignore.md: # ist ein Kommentar, * ? ** sind Platzhalter, ein führender / bindet an die Synchronisierungswurzel, ein abschließender / trifft Ordner, ! hebt einen Ausschluss auf.",
+    "Die Regeln hier gelten nur für deinen Tresor; diese Datei wird nie synchronisiert. Gleiche Syntax wie _Sync/ignore.md: # ist ein Kommentar, * ? ** sind Platzhalter, ein führender / bindet an die Synchronisierungswurzel, ein abschließender / trifft Ordner, ! hebt einen Ausschluss auf, aber nie für eine Datei in einem ausgeschlossenen Ordner.",
   panelUnsorted: (n) => `Noch nicht entschieden (${n})`,
   panelLocalOnlyDesc: "Drive hat diese Dateien nicht. Jede bleibt hier und wird nicht hochgeladen, bis du entscheidest.",
   btnShare: "Teilen",

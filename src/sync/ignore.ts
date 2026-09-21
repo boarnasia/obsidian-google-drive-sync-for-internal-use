@@ -85,8 +85,9 @@ function globToRegex(glob: string): string {
 /**
  * 同期ルート相対のパスを、除外するかどうか。
  *
- * 後の規則ほど強い（`.gitignore` と同じ）。フォルダに一致した規則は、その下の
- * すべてに及ぶ。
+ * 後の規則ほど強い。上の階層のフォルダから順に判定し、除外されたフォルダがあれば
+ * その下はすべて除外する。`.gitignore` と同じく、除外したフォルダの中身を `!` で
+ * 戻すことはできない——戻せると、チームの `下書き/` を各自の規則で崩せてしまう。
  */
 export function isIgnored(path: string, rules: Rule[]): boolean {
   if (NEVER_IGNORED.includes(path)) return false;
@@ -95,20 +96,17 @@ export function isIgnored(path: string, rules: Rule[]): boolean {
   }
 
   const segments = path.split("/");
-  // 自分自身と、すべての祖先フォルダを見る。祖先が除外されていれば中身も除外される。
-  const candidates: { path: string; isDir: boolean }[] = segments.map((_, i) => ({
-    path: segments.slice(0, i + 1).join("/"),
-    isDir: i < segments.length - 1,
-  }));
-
-  let ignored = false;
-  for (const rule of rules) {
-    for (const c of candidates) {
-      if (rule.dirOnly && !c.isDir) continue;
-      if (rule.test.test(c.path)) ignored = !rule.negate;
+  for (let i = 0; i < segments.length; i++) {
+    const current = segments.slice(0, i + 1).join("/");
+    const isDir = i < segments.length - 1;
+    let ignored = false;
+    for (const rule of rules) {
+      if (rule.dirOnly && !isDir) continue;
+      if (rule.test.test(current)) ignored = !rule.negate;
     }
+    if (ignored) return true;
   }
-  return ignored;
+  return false;
 }
 
 /** 規則をひとつの判定関数にまとめる。チームの規則と各自の規則は、この順で重ねる。 */

@@ -83,6 +83,23 @@ describe("一致", () => {
     expect(ignored("ロゴ.png")).toBe(true);
   });
 
+  it("除外したフォルダの中のファイルは ! で戻せない（.gitignore と同じ）", () => {
+    const ignored = match("下書き/\n!下書き/残す.md");
+    expect(ignored("下書き/残す.md")).toBe(true);
+    expect(ignored("下書き/2026/残す.md")).toBe(true);
+  });
+
+  it("フォルダ自体を ! で戻せば、中身も戻る", () => {
+    const ignored = match("下書き/\n!下書き/");
+    expect(ignored("下書き/a.md")).toBe(false);
+  });
+
+  it("フォルダを除外せず中身だけを除外したなら、! で個別に戻せる", () => {
+    const ignored = match("下書き/*\n!下書き/残す.md");
+    expect(ignored("下書き/a.md")).toBe(true);
+    expect(ignored("下書き/残す.md")).toBe(false);
+  });
+
   it("規則が無ければ何も除外しない", () => {
     const ignored = match("");
     expect(ignored("a.md")).toBe(false);
@@ -109,6 +126,11 @@ describe("重ね方", () => {
     expect(ignored("図.png")).toBe(true);
     expect(ignored("ロゴ.png")).toBe(false); // 各自の打ち消しが後に来る
     expect(ignored("下書き/a.md")).toBe(true);
+  });
+
+  it("チームが除外したフォルダの中身を、各自の規則で戻すことはできない", () => {
+    const ignored = ignoreMatcher("下書き/", "!下書き/私の.md");
+    expect(ignored("下書き/私の.md")).toBe(true);
   });
 
   it("設定ファイルが無くても動く", () => {

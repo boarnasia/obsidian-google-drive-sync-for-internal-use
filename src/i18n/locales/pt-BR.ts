@@ -124,7 +124,7 @@ export const ptBR: Strings = {
   // ------------------------------------------------ ローカル固有ファイルの分類
   localIgnoreTitle: "Suas próprias regras de exclusão",
   localIgnoreBody:
-    "As regras daqui valem só para o seu cofre; este arquivo nunca é sincronizado. Mesma sintaxe de _Sync/ignore.md: # é comentário, * ? ** são curingas, uma / inicial fixa na raiz da sincronização, uma / final casa com pastas e ! desfaz uma exclusão.",
+    "As regras daqui valem só para o seu cofre; este arquivo nunca é sincronizado. Mesma sintaxe de _Sync/ignore.md: # é comentário, * ? ** são curingas, uma / inicial fixa na raiz da sincronização, uma / final casa com pastas e ! desfaz uma exclusão, mas nunca a de um arquivo dentro de uma pasta excluída.",
   panelUnsorted: (n) => `Ainda sem decisão (${n})`,
   panelLocalOnlyDesc: "O Drive não tem estes arquivos. Cada um fica aqui, sem subir, até você decidir.",
   btnShare: "Compartilhar",

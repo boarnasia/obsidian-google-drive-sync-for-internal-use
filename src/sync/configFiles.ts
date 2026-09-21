@@ -35,7 +35,8 @@ export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules — paths that are ne
 #   ?       one character
 #   /foo    anchored to the sync root
 #   foo/    folders only, and everything inside them
-#   !foo    un-ignores what an earlier rule matched
+#   !foo    un-ignores what an earlier rule matched, but never a file
+#           inside an ignored folder
 #
 # Later rules win. _SyncLocal/ is always ignored, and _Sync/ignore.md can
 # never be ignored.

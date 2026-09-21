@@ -123,7 +123,7 @@ export const fr: Strings = {
   // ------------------------------------------------ ローカル固有ファイルの分類
   localIgnoreTitle: "Vos propres règles d’exclusion",
   localIgnoreBody:
-    "Les règles écrites ici ne valent que pour votre coffre ; ce fichier n’est jamais synchronisé. Même syntaxe que _Sync/ignore.md : # pour un commentaire, * ? ** comme jokers, un / initial ancre à la racine de synchronisation, un / final vise les dossiers, ! annule une exclusion.",
+    "Les règles écrites ici ne valent que pour votre coffre ; ce fichier n’est jamais synchronisé. Même syntaxe que _Sync/ignore.md : # pour un commentaire, * ? ** comme jokers, un / initial ancre à la racine de synchronisation, un / final vise les dossiers, ! annule une exclusion, mais jamais pour un fichier situé dans un dossier exclu.",
   panelUnsorted: (n) => `Pas encore décidé (${n})`,
   panelLocalOnlyDesc: "Drive n’a pas ces fichiers. Chacun reste ici, non envoyé, tant que vous n’avez pas décidé.",
   btnShare: "Partager",

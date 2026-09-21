@@ -124,7 +124,7 @@ export const en = {
   // ------------------------------------------------ ローカル固有ファイルの分類
   localIgnoreTitle: "Your own ignore rules",
   localIgnoreBody:
-    "Rules here apply only to your own vault; this file is never synced. Same syntax as _Sync/ignore.md: # is a comment, * ? ** are globs, a leading / anchors to the sync root, a trailing / matches folders, ! un-ignores.",
+    "Rules here apply only to your own vault; this file is never synced. Same syntax as _Sync/ignore.md: # is a comment, * ? ** are globs, a leading / anchors to the sync root, a trailing / matches folders, ! un-ignores, but never a file inside an ignored folder.",
   panelUnsorted: (n: number): string => `Not decided yet (${n})`,
   panelLocalOnlyDesc: "Drive does not have these files. Each one stays here, unsent, until you decide.",
   btnShare: "Share",
