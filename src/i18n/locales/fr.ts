@@ -86,6 +86,7 @@ export const fr: Strings = {
   panelChecking: "Vérification des changements…",
   panelReady: "✓ Prêt à synchroniser.",
   panelBlocked: "⚠ Les envois sont suspendus.",
+  panelSyncFailed: (message) => `✗ La dernière synchronisation a échoué : ${message}`,
   reasonNoBaseline:
     "Ce coffre n’a pas encore été récupéré depuis Drive et les deux côtés contiennent des fichiers. Lancez d’abord « Récupérer depuis Drive ».",
   reasonVaultEmpty:

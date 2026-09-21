@@ -112,6 +112,8 @@ export class SyncPanelView extends ItemView {
       box.createDiv({ cls: "gds-panel-blocked", text: t.panelBlocked });
       for (const reason of this.plan.blocked) box.createDiv({ cls: "gds-panel-note", text: reasonText(reason) });
     }
+    const failed = this.plugin.lastSyncError;
+    if (failed) box.createDiv({ cls: "gds-panel-blocked", text: t.panelSyncFailed(failed) });
 
     const last = this.plugin.settings.lastSyncAt;
     box.createDiv({

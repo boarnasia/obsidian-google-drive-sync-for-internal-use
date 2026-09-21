@@ -2,7 +2,7 @@ import { PutResult, RemoteObject, RemoteProvider } from "../providers/RemoteProv
 import { conflictPath, safeVaultPath } from "../util/paths";
 import { sha256Hex } from "../util/hash";
 import { LocalStore } from "./LocalStore";
-import { FileState, LocalFile, LocalStamp, SyncPlan, SyncReport, SyncStateData, emptyReport } from "./types";
+import { FileState, LocalFile, LocalStamp, LocalStat, SyncPlan, SyncReport, SyncStateData, emptyReport } from "./types";
 import { runPool } from "../util/pool";
 
 /**
@@ -59,6 +59,11 @@ function stateOf(L: LocalFile, remoteVersion: string): FileState {
   return { localHash: L.hash, remoteVersion, localMtime: L.mtime, localSize: L.size };
 }
 
+/** 書き込んだファイルのベースライン。書いた直後の姿を持たせ、次の一覧で読み直させない。 */
+function writtenState(hash: string, remoteVersion: string, stat: LocalStat): FileState {
+  return { localHash: hash, remoteVersion, localMtime: stat.mtime, localSize: stat.size };
+}
+
 /** 両側の現在の姿。plan と sync が同じ読み取りを共有する。 */
 interface Sides {
   localMap: Map<string, LocalFile>;
@@ -104,6 +109,23 @@ export class SyncEngine {
       // 除外されたパスはベースラインからも外す。残すと、次の同期で削除と読まれる。
       tracked: Object.keys(prev).filter((path) => !this.ignored(path)),
     };
+  }
+
+  /**
+   * ローカルがベースラインから変わったか。ポーリングがリモートの問い合わせより先に見る。
+   *
+   * 同期はファイルの変更イベントを起点に走るが、イベントは取りこぼしうる（Obsidian を
+   * 閉じている間の編集、失敗した同期など）。ここで拾い直さないと、リモートに変更が
+   * 来るまで上がらない。分類待ちのファイルは上げないと決まっているので数えない。
+   */
+  async hasLocalChanges(prev: SyncStateData): Promise<boolean> {
+    const seen = new Set<string>();
+    for (const f of await this.local.list(stampsOf(prev))) {
+      if (this.ignored(f.path) || this.held.has(f.path)) continue;
+      seen.add(f.path);
+      if (prev[f.path]?.localHash !== f.hash) return true;
+    }
+    return Object.keys(prev).some((path) => !this.ignored(path) && !this.held.has(path) && !seen.has(path));
   }
 
   /**
@@ -227,8 +249,7 @@ export class SyncEngine {
           await this.local.write(cp, await this.local.read(path));
           report.conflicts.push({ path, conflictPath: cp });
         }
-        await this.local.write(safeVaultPath(path), data);
-        state[path] = { localHash: hash, remoteVersion: R.version };
+        state[path] = writtenState(hash, R.version, await this.local.write(safeVaultPath(path), data));
         report.downloaded.push(path);
       } catch (e) {
         report.errors.push({ path, error: (e as Error).message });
@@ -311,6 +332,9 @@ export class SyncEngine {
 
     if (!localChanged && !remoteChanged) {
       if (!L && !R) delete state[path];
+      // 姿の無い古い項目や、中身を変えずに触られたファイルの姿を今の姿に揃える。
+      // 揃えないと、変わっていないのに毎回読み直すことになる。
+      else if (L && S && (S.localMtime !== L.mtime || S.localSize !== L.size)) state[path] = stateOf(L, S.remoteVersion);
       return;
     }
 
@@ -386,8 +410,7 @@ export class SyncEngine {
     if (R.mtime !== undefined && R.mtime > L.mtime) {
       // リモートが新しい。正とする前に、古いローカル版を退避しておく。
       await this.local.write(cp, await this.local.read(path));
-      await this.local.write(safeVaultPath(path), remoteBytes);
-      state[path] = { localHash: remoteHash, remoteVersion: R.version };
+      state[path] = writtenState(remoteHash, R.version, await this.local.write(safeVaultPath(path), remoteBytes));
       report.downloaded.push(path);
       report.conflicts.push({ path, conflictPath: cp });
     } else {
@@ -408,8 +431,8 @@ export class SyncEngine {
   private async download(path: string, R: RemoteObject, state: SyncStateData, report: SyncReport): Promise<void> {
     const data = await this.remote.get(path);
     if (data === null) return; // 実行中に消えた。次回の同期で整合する
-    await this.local.write(safeVaultPath(path), data);
-    state[path] = { localHash: await sha256Hex(data), remoteVersion: R.version };
+    const stat = await this.local.write(safeVaultPath(path), data);
+    state[path] = writtenState(await sha256Hex(data), R.version, stat);
     report.downloaded.push(path);
   }
 

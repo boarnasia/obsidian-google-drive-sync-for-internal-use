@@ -67,6 +67,34 @@ describe("書き込み", () => {
     expect(v.contentOf("顧客/A社.md")).toBe("new");
   });
 
+  it("書いた後の mtime と size を返す（ベースラインに姿を残すため）", async () => {
+    const stat = await store().write("顧客/A社.md", enc("newer"));
+    const file = v.getFileByPath("顧客/A社.md")!;
+
+    expect(stat).toEqual({ mtime: file.stat.mtime, size: 5 });
+  });
+
+  it("書き込み・フォルダ作成・削除の前に、そのパスを知らせる（イベントより先に）", async () => {
+    const order: string[] = [];
+    v.onChange = (type, path) => order.push(`${type}:${path}`);
+    const s = new ObsidianLocalStore(appWith(v) as unknown as App, (path) => order.push(`before:${path}`));
+
+    await s.write("議事録/12.md", enc("x"));
+    await s.write("顧客/A社.md", enc("y"));
+    await s.delete("顧客/A社.md");
+
+    expect(order).toEqual([
+      "before:議事録",
+      "create:議事録",
+      "before:議事録/12.md",
+      "create:議事録/12.md",
+      "before:顧客/A社.md",
+      "modify:顧客/A社.md",
+      "before:顧客/A社.md",
+      "delete:顧客/A社.md",
+    ]);
+  });
+
   it("新規ファイルは祖先フォルダごと作る", async () => {
     await store().write("議事録/2026/09/12.md", enc("x"));
 

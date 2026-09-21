@@ -25,14 +25,8 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   private pendingLocal = false;
   /** 変更が届いたパス。デバウンス後にまとめて判断する。 */
   private readonly touched = new Set<string>();
-  /**
-   * 直前の同期で自分が書いた Vault 相対パス。
-   *
-   * Vault API 経由で書く以上、自分の書き込みも modify / create / delete を発火する。
-   * これを数えると、ダウンロードが次の同期を呼び、それがまた…と無駄な往復が続く。
-   * 書いたパスを控えておき、戻ってきた分だけ消し込む。
-   */
-  private readonly selfWritten = new Set<string>();
+  /** 直近の同期の失敗。自動同期は通知を出さないので、サイドバーに出して気づかせる。 */
+  lastSyncError: string | null = null;
 
   /** 同期先の問い合わせ中。終わるまで同期を待たせ、古い同期先で走らせない。 */
   private resolvingTarget: Promise<void> | null = null;
@@ -119,7 +113,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   // ------------------------------------------------------ ローカル変更の検知
 
   private noteChange(path: string): void {
-    if (this.selfWritten.delete(path)) return; // 自分が書いた分
+    if (this.controller.consumeOwnWrite(path)) return;
     this.touched.add(path);
     this.onLocalChange();
   }
@@ -145,7 +139,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   // ---------------------------------------------------------------- 同期
 
   /**
-   * @param opts.probeFirst ポーリング由来。リモートに変更が無ければ何もしない。
+   * @param opts.probeFirst ポーリング由来。ローカルにもリモートにも変更が無ければ何もしない。
    * @param opts.quiet 何も起きなかったときに通知を出さない（自動同期用）。
    */
   async runSync(opts: { probeFirst?: boolean; quiet?: boolean; approvedDeletes?: ReadonlySet<string> } = {}): Promise<void> {
@@ -155,18 +149,19 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     }
     if (this.resolvingTarget) await this.resolvingTarget;
     if (opts.quiet && !this.controller.ready) return; // 未設定なら黙って見送る
+    // サイドバーの clone や分類が走っている。断られるだけなので、次のポーリングに任せる。
+    if (opts.quiet && this.controller.busy) return;
 
     this.syncing = true;
     try {
       const report = opts.probeFirst
-        ? await this.controller.syncIfRemoteChanged()
+        ? await this.controller.syncIfChanged()
         : await this.controller.sync({ approvedDeletes: opts.approvedDeletes });
-      if (report) {
-        this.rememberOwnWrites(report);
-        if (!opts.quiet || this.didSomething(report)) new Notice(t.notice(this.summarise(report)));
-      }
+      this.lastSyncError = null;
+      if (report && (!opts.quiet || this.didSomething(report))) new Notice(t.notice(this.summarise(report)));
     } catch (e) {
-      if (!opts.quiet) new Notice(t.notice((e as Error).message));
+      this.lastSyncError = e instanceof Error ? e.message : String(e);
+      if (!opts.quiet) new Notice(t.notice(this.lastSyncError));
     } finally {
       this.syncing = false;
       this.refreshPanels();
@@ -175,13 +170,6 @@ export default class GoogleDriveSyncPlugin extends Plugin {
         void this.runSync({ quiet: true });
       }
     }
-  }
-
-  /** 自分が書いたパスを控える。戻ってくるイベントを数えないため。 */
-  private rememberOwnWrites(report: SyncReport): void {
-    for (const p of report.downloaded) this.selfWritten.add(p);
-    for (const p of report.deletedLocal) this.selfWritten.add(p);
-    for (const c of report.conflicts) this.selfWritten.add(c.conflictPath);
   }
 
   private didSomething(r: SyncReport): boolean {

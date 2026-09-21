@@ -85,6 +85,7 @@ export const kn: Strings = {
   panelChecking: "ಬದಲಾವಣೆಗಳನ್ನು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ…",
   panelReady: "✓ ಸಿಂಕ್ ಮಾಡಲು ಸಿದ್ಧ.",
   panelBlocked: "⚠ ಅಪ್‌ಲೋಡ್ ತಡೆಹಿಡಿಯಲಾಗಿದೆ.",
+  panelSyncFailed: (message) => `✗ ಕೊನೆಯ ಸಿಂಕ್ ವಿಫಲವಾಗಿದೆ: ${message}`,
   reasonNoBaseline:
     "ಈ ವಾಲ್ಟ್ ಅನ್ನು ಇನ್ನೂ Drive ನಿಂದ ತಂದಿಲ್ಲ, ಮತ್ತು ಎರಡೂ ಕಡೆ ಫೈಲ್‌ಗಳಿವೆ. ಮೊದಲು “Drive ನಿಂದ ತನ್ನಿ” ಚಲಾಯಿಸಿ.",
   reasonVaultEmpty:

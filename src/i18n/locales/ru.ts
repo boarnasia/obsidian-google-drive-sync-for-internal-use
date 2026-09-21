@@ -95,6 +95,7 @@ export const ru: Strings = {
   panelChecking: "Проверяем изменения…",
   panelReady: "✓ Готово к синхронизации.",
   panelBlocked: "⚠ Отправка приостановлена.",
+  panelSyncFailed: (message) => `✗ Последняя синхронизация не удалась: ${message}`,
   reasonNoBaseline:
     "Это хранилище ещё не забрано с Диска, и файлы есть с обеих сторон. Сначала выполните «Забрать с Диска».",
   reasonVaultEmpty:

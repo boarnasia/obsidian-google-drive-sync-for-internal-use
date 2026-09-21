@@ -85,6 +85,7 @@ export const ja: Strings = {
   panelChecking: "変更を確認しています…",
   panelReady: "✓ 同期できます。",
   panelBlocked: "⚠ アップロードを停止中です。",
+  panelSyncFailed: (message) => `✗ 前回の同期に失敗しました: ${message}`,
   reasonNoBaseline:
     "この Vault はまだ Drive から取り込んでいません。両側にファイルがあるので、先に「Drive から取り込む」を実行してください。",
   reasonVaultEmpty:

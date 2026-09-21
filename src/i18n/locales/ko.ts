@@ -85,6 +85,7 @@ export const ko: Strings = {
   panelChecking: "변경 사항을 확인하는 중…",
   panelReady: "✓ 동기화할 수 있습니다.",
   panelBlocked: "⚠ 업로드를 중단했습니다.",
+  panelSyncFailed: (message) => `✗ 마지막 동기화에 실패했습니다: ${message}`,
   reasonNoBaseline:
     '이 보관소는 아직 Drive에서 가져오지 않았고, 양쪽 모두에 파일이 있습니다. 먼저 "Drive에서 가져오기"를 실행하세요.',
   reasonVaultEmpty:

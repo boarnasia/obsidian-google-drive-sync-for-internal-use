@@ -16,6 +16,9 @@ export interface LocalStamp {
   size: number;
 }
 
+/** 書き込んだ直後のファイルの姿。ハッシュは書いた側が知っている。 */
+export type LocalStat = Pick<LocalStamp, "mtime" | "size">;
+
 /** 1 パス分のベースライン。キーが無いことが「まだ同期していない」を意味する。 */
 export interface FileState {
   localHash: string;

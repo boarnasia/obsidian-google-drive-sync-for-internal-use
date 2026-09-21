@@ -87,6 +87,7 @@ export const ptBR: Strings = {
   panelChecking: "Verificando o que mudou…",
   panelReady: "✓ Pronto para sincronizar.",
   panelBlocked: "⚠ Os envios estão pausados.",
+  panelSyncFailed: (message) => `✗ A última sincronização falhou: ${message}`,
   reasonNoBaseline:
     "Este cofre ainda não foi trazido do Drive e há arquivos dos dois lados. Execute “Trazer do Drive” primeiro.",
   reasonVaultEmpty:

@@ -1,6 +1,6 @@
 import { App, TFile, normalizePath } from "obsidian";
 import { LocalStore } from "../sync/LocalStore";
-import { LocalFile, LocalStamp } from "../sync/types";
+import { LocalFile, LocalStamp, LocalStat } from "../sync/types";
 import { sha256Hex } from "../util/hash";
 import { safeVaultPath } from "../util/paths";
 import { runPool } from "../util/pool";
@@ -16,7 +16,15 @@ const HASH_CONCURRENCY = 8;
  * ファイルをエディタの裏で書き換えることになる（ADR-0001）。
  */
 export class ObsidianLocalStore implements LocalStore {
-  constructor(private readonly app: App) {}
+  /**
+   * @param beforeWrite 書き込み・削除・フォルダ作成の直前に Vault 相対パスを受け取る。
+   *   Obsidian は modify / create / delete を書き込みの完了 *前* に発火するので、
+   *   自分の書き込みを見分けたい側は、ここで先に控えておく必要がある。
+   */
+  constructor(
+    private readonly app: App,
+    private readonly beforeWrite: (path: string) => void = () => undefined
+  ) {}
 
   // ------------------------------------------------------------ パスの変換
 
@@ -97,16 +105,18 @@ export class ObsidianLocalStore implements LocalStore {
    * ファイルが開かれていればエディタが正しくリロードされ、他の人の更新がその場で
    * 見える。これがこのモデルの目的そのものである（ADR-0001）。
    */
-  async write(path: string, data: ArrayBuffer): Promise<void> {
+  async write(path: string, data: ArrayBuffer): Promise<LocalStat> {
     const full = this.resolve(path);
     const existing = this.app.vault.getFileByPath(full);
     if (existing) {
+      this.beforeWrite(full);
       await this.app.vault.modifyBinary(existing, data);
-      return;
+      return statOf(existing);
     }
     const slash = full.lastIndexOf("/");
     if (slash > 0) await this.ensureFolder(full.slice(0, slash));
-    await this.app.vault.createBinary(full, data);
+    this.beforeWrite(full);
+    return statOf(await this.app.vault.createBinary(full, data));
   }
 
   /** 祖先フォルダを順に作る（createFolder は再帰的ではない）。 */
@@ -116,6 +126,7 @@ export class ObsidianLocalStore implements LocalStore {
       if (!part) continue;
       cur = cur ? `${cur}/${part}` : part;
       if (this.app.vault.getFolderByPath(cur)) continue;
+      this.beforeWrite(cur);
       // 直前の存在確認をすり抜けて既にある場合（別の同期や利用者の操作）は無視する。
       await this.app.vault.createFolder(cur).catch(() => undefined);
     }
@@ -125,10 +136,16 @@ export class ObsidianLocalStore implements LocalStore {
     const full = this.resolve(path);
     const file = this.app.vault.getAbstractFileByPath(full);
     if (!file) return;
+    this.beforeWrite(full);
     // 完全削除はしない。「リモートで消えた」という判断が誤っていても、必ず戻せる
     // ようにしておく。OS のゴミ箱を優先し、使えなければ Vault 内の .trash に落とす。
     // FileManager.trashFile は利用者の「完全に削除」設定にも従ってしまうので使わない
     // （lint の prefer-file-manager-trash-file 警告は承知の上で残す）。
     await this.app.vault.trash(file, true).catch(() => this.app.vault.trash(file, false));
   }
+}
+
+/** 書き込みの完了までに Obsidian が stat を新しい姿に更新している。 */
+function statOf(file: TFile): LocalStat {
+  return { mtime: file.stat.mtime, size: file.stat.size };
 }

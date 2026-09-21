@@ -81,6 +81,7 @@ export const zhTW: Strings = {
   panelChecking: "正在檢查變更…",
   panelReady: "✓ 可以同步。",
   panelBlocked: "⚠ 已暫停上傳。",
+  panelSyncFailed: (message) => `✗ 上次同步失敗：${message}`,
   reasonNoBaseline: "此儲存庫尚未從 Drive 取回，而且兩邊都有檔案。請先執行「從 Drive 取回」。",
   reasonVaultEmpty:
     "遠端與本機差異很大：Drive 上仍然列出的許多檔案在本機已被刪除。請在下方從 Drive 刪除它們，或執行「從 Drive 取回」把它們取回來。",

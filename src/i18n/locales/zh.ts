@@ -81,6 +81,7 @@ export const zh: Strings = {
   panelChecking: "正在检查变更…",
   panelReady: "✓ 可以同步。",
   panelBlocked: "⚠ 已暂停上传。",
+  panelSyncFailed: (message) => `✗ 上次同步失败：${message}`,
   reasonNoBaseline: "此仓库尚未从 Drive 取回，而且两边都有文件。请先执行“从 Drive 取回”。",
   reasonVaultEmpty:
     "远端与本地差异很大：Drive 上仍然列出的许多文件在本地已被删除。请在下面从 Drive 删除它们，或执行“从 Drive 取回”把它们取回来。",

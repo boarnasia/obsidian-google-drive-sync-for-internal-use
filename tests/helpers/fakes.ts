@@ -4,7 +4,7 @@
  */
 import { PutResult, RemoteObject, RemoteProvider } from "../../src/providers/RemoteProvider";
 import { LocalStore } from "../../src/sync/LocalStore";
-import { LocalFile, LocalStamp } from "../../src/sync/types";
+import { LocalFile, LocalStamp, LocalStat } from "../../src/sync/types";
 import { sha256Hex } from "../../src/util/hash";
 
 export const enc = (s: string): ArrayBuffer => new TextEncoder().encode(s).buffer as ArrayBuffer;
@@ -92,10 +92,11 @@ export class FakeLocal implements LocalStore {
     const d = this.store.get(path);
     return d === undefined ? null : dec(d);
   }
-  async write(path: string, data: ArrayBuffer): Promise<void> {
+  async write(path: string, data: ArrayBuffer): Promise<LocalStat> {
     if (path.split("/").includes("..")) throw new Error("unsafe path: " + path);
     this.store.set(path, data);
     this.mt.set(path, ++this.clock);
+    return { mtime: this.clock, size: data.byteLength };
   }
   async delete(path: string): Promise<void> {
     this.store.delete(path);

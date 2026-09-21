@@ -86,6 +86,7 @@ export const de: Strings = {
   panelChecking: "Änderungen werden geprüft…",
   panelReady: "✓ Bereit zum Synchronisieren.",
   panelBlocked: "⚠ Uploads sind angehalten.",
+  panelSyncFailed: (message) => `✗ Letzte Synchronisierung fehlgeschlagen: ${message}`,
   reasonNoBaseline:
     "Dieser Tresor wurde noch nicht von Drive geholt, und auf beiden Seiten liegen Dateien. Führe zuerst „Von Drive holen“ aus.",
   reasonVaultEmpty:

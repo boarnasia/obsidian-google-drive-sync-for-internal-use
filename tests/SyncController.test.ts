@@ -184,12 +184,58 @@ describe("変更プローブ", () => {
     expect(settings.changeToken[ROOT]).toBe("start-1");
   });
 
-  it("保存したトークンがあり、変更が無ければ同期しない", async () => {
-    settings.changeToken[ROOT] = "start-1";
+  it("ローカルにもリモートにも変更が無ければ同期しない", async () => {
     vault.seed("a.md", "x");
+    const c = connected();
+    await c.sync();
+    calls = [];
 
-    expect(await connected().syncIfRemoteChanged()).toBeNull();
-    expect(drive.contents()).toEqual({}); // 走査すらしていない
+    expect(await c.syncIfChanged()).toBeNull();
+    expect(calls).not.toContain("list"); // 走査すらしていない
+  });
+
+  it("変更イベントを取りこぼしたローカルの編集も、リモートの変更を待たずに上げる", async () => {
+    vault.seed("a.md", "x");
+    const c = connected();
+    await c.sync();
+
+    vault.seed("a.md", "x2", 99); // イベントを通さずに書き換わった
+    const report = await c.syncIfChanged();
+
+    expect(report?.uploaded).toEqual(["a.md"]);
+    expect(calls).not.toContain("changes"); // リモートに問い合わせるまでもない
+  });
+
+  it("消えたローカルのファイルも変更として拾う", async () => {
+    vault.seed("a.md", "x");
+    vault.seed("b.md", "y");
+    const c = connected();
+    await c.sync();
+
+    await vault.trash(vault.getFileByPath("b.md")!, true);
+    const report = await c.syncIfChanged();
+
+    expect(report?.deletedRemote).toEqual(["b.md"]);
+  });
+
+  it("分類待ちのファイルだけでは同期しない（上げないと決まっている）", async () => {
+    vault.seed("a.md", "x");
+    const c = connected();
+    await c.sync();
+
+    vault.seed("私のメモ.md", "私的");
+    settings.unsorted[ROOT] = ["私のメモ.md"];
+
+    expect(await c.syncIfChanged()).toBeNull();
+  });
+
+  it("直近の同期が止まったなら、ローカルの差分だけでは同期し直さない", async () => {
+    vault.seed("a.md", "x");
+    drive.seed("b.md", "y");
+    const c = connected();
+    expect((await c.sync()).blocked).toEqual(["no-baseline"]);
+
+    expect(await c.syncIfChanged()).toBeNull();
   });
 
   it("変更があれば同期する", async () => {
@@ -197,14 +243,14 @@ describe("変更プローブ", () => {
     changes = [{ fileId: "x" }];
     vault.seed("a.md", "x");
 
-    const report = await connected().syncIfRemoteChanged();
+    const report = await connected().syncIfChanged();
     expect(report?.uploaded).toEqual(["a.md"]);
   });
 
   it("トークンが無ければ（初回・失効）同期する側に倒れる", async () => {
     vault.seed("a.md", "x");
 
-    const report = await connected().syncIfRemoteChanged();
+    const report = await connected().syncIfChanged();
     expect(report?.uploaded).toEqual(["a.md"]);
   });
 
@@ -217,6 +263,51 @@ describe("変更プローブ", () => {
     await c.sync();
 
     expect(settings.changeToken[ROOT]).toBe("start-2");
+  });
+});
+
+describe("自分の書き込みの見分け", () => {
+  /** 本物と同じく書き込みの最中に届くイベントのうち、自分の書き込みと見分けられなかったもの。 */
+  function watch(c: SyncController): string[] {
+    const foreign: string[] = [];
+    vault.onChange = (_type, path) => {
+      if (!c.consumeOwnWrite(path)) foreign.push(path);
+    };
+    return foreign;
+  }
+
+  it("ダウンロードのイベントは自分の書き込みとして消し込む（次の同期を呼ばない）", async () => {
+    drive.seed("共有/連絡.md", "お知らせ");
+    const c = connected();
+    const foreign = watch(c);
+
+    await c.sync();
+
+    expect(vault.contentOf("共有/連絡.md")).toBe("お知らせ");
+    expect(foreign).toEqual([]);
+  });
+
+  it("リモートの削除をローカルに反映したイベントも消し込む", async () => {
+    vault.seed("a.md", "x");
+    vault.seed("b.md", "y");
+    const c = connected();
+    await c.sync();
+    drive.hardDelete("b.md");
+    const foreign = watch(c);
+
+    await c.sync();
+
+    expect(vault.getFileByPath("b.md")).toBeNull();
+    expect(foreign).toEqual([]);
+  });
+
+  it("消し込まれずに残った控えは、操作の終わりに捨てる", async () => {
+    drive.seed("連絡.md", "お知らせ");
+    const c = connected();
+    await c.sync(); // イベントを誰も受け取らない
+
+    // 残すと、利用者の次の編集が自分の書き込みとして吸い込まれ、上がらなくなる。
+    expect(c.consumeOwnWrite("連絡.md")).toBe(false);
   });
 });
 

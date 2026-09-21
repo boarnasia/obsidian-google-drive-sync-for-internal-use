@@ -29,8 +29,8 @@ import { t } from "./i18n";
  */
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
-function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
-  return local.write(path, new TextEncoder().encode(body).buffer);
+async function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
+  await local.write(path, new TextEncoder().encode(body).buffer);
 }
 
 /**
@@ -49,6 +49,17 @@ export class SyncController {
    * ポーリング・ファイル監視と複数あるので、入口ではなくここで一本化する。
    */
   private running = false;
+  /**
+   * 実行中の操作が書こうとしている Vault 相対パス。
+   *
+   * Vault API 経由で書く以上、自分の書き込みも modify / create / delete を発火する。
+   * これを変更として数えると、ダウンロードが次の同期を呼ぶ。Obsidian はイベントを
+   * 書き込みの完了前に発火するので、書く直前に控える。操作が終わった時点で残って
+   * いるものはもうイベントが来ないので捨てる——残すと、利用者の次の編集を吸い込む。
+   */
+  private readonly ownWrites = new Set<string>();
+  /** 直近の同期が止まったか。止まっている間は、ローカルの差分だけでは同期し直さない。 */
+  private lastBlocked = false;
 
   constructor(
     private readonly app: App,
@@ -86,7 +97,18 @@ export class SyncController {
       return await run();
     } finally {
       this.running = false;
+      this.ownWrites.clear();
     }
+  }
+
+  /** ベースラインを書き換える操作が走っているか。 */
+  get busy(): boolean {
+    return this.running;
+  }
+
+  /** このパスの変更イベントが、実行中の操作自身の書き込みによるものなら true（一度きり）。 */
+  consumeOwnWrite(path: string): boolean {
+    return this.ownWrites.delete(path);
   }
 
   private requireTarget(): DriveTarget {
@@ -150,13 +172,15 @@ export class SyncController {
   // ------------------------------------------------------------------ 同期
 
   /**
-   * ポーリング用。リモートに変更が無ければ何もせず null を返す。
+   * ポーリング用。ローカルにもリモートにも変更が無ければ何もせず null を返す。
    *
-   * プローブが見ているのはリモートだけなので、ローカルの変更を起点とする同期は
-   * この経路を通してはいけない（ADR-0002）。
+   * ローカルを先に見る。変更イベントを取りこぼしたローカルの編集は、ここで拾わないと
+   * リモートに変更が来るまで上がらない。直近の同期が止まっているなら、同期し直しても
+   * また止まるだけなので、リモートの変更だけを待つ（抜け道はサイドバーにある）。
    */
-  async syncIfRemoteChanged(): Promise<SyncReport | null> {
+  async syncIfChanged(): Promise<SyncReport | null> {
     const target = this.requireTarget();
+    if (!this.lastBlocked && (await this.hasLocalChanges(target))) return this.sync();
     const saved = this.settings.changeToken[target.folderId] ?? "";
     if (saved && !(await hasChanges(this.http, () => this.getToken(), target.driveId, saved))) return null;
     return this.sync();
@@ -175,6 +199,7 @@ export class SyncController {
 
     const key = target.folderId;
     const { state, report } = await (await this.engineFor(target)).sync(this.settings.syncState[key] ?? {}, opts);
+    this.lastBlocked = report.blocked.length > 0;
     // 上がった、あるいは消えたファイルは、もう分類の対象ではない。
     const stillLocalOnly = new Set(report.localOnly);
     this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => stillLocalOnly.has(path));
@@ -198,6 +223,7 @@ export class SyncController {
 
     const key = target.folderId;
     const { state, report } = await (await this.engineFor(target)).clone(this.settings.syncState[key] ?? {});
+    this.lastBlocked = false;
     // 取り込みは両側を数え直すので、未整理も持ち越さずに作り直す。
     this.settings.unsorted[key] = [...report.localOnly];
     await this.commit(key, state, freshToken);
@@ -277,8 +303,12 @@ export class SyncController {
     return (await this.engineFor(target)).plan(this.settings.syncState[target.folderId] ?? {});
   }
 
+  private async hasLocalChanges(target: DriveTarget): Promise<boolean> {
+    return (await this.engineFor(target)).hasLocalChanges(this.settings.syncState[target.folderId] ?? {});
+  }
+
   private store(): ObsidianLocalStore {
-    return new ObsidianLocalStore(this.app);
+    return new ObsidianLocalStore(this.app, (path) => this.ownWrites.add(path));
   }
 
   private async engineFor(target: DriveTarget): Promise<SyncEngine> {

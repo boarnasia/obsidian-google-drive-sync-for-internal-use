@@ -85,6 +85,7 @@ export const hi: Strings = {
   panelChecking: "बदलाव जाँचे जा रहे हैं…",
   panelReady: "✓ सिंक के लिए तैयार।",
   panelBlocked: "⚠ अपलोड रोक दिए गए हैं।",
+  panelSyncFailed: (message) => `✗ पिछला सिंक विफल रहा: ${message}`,
   reasonNoBaseline: "इस वॉल्ट को अभी तक Drive से नहीं लाया गया है और दोनों ओर फ़ाइलें हैं। पहले “Drive से लाएँ” चलाएँ।",
   reasonVaultEmpty:
     "रिमोट और स्थानीय में बड़ा अंतर है: Drive में दर्ज कई फ़ाइलें स्थानीय रूप से हटा दी गई हैं। नीचे से उन्हें Drive पर हटाएँ, या “Drive से लाएँ” चलाकर वापस लाएँ।",

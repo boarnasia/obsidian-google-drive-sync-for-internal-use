@@ -99,6 +99,37 @@ describe("起動", () => {
 
     expect(plugin.settings.lastSyncAt).toBeNull();
   });
+
+  it("自動同期の失敗は通知の代わりにサイドバー用に控え、成功したら消す", async () => {
+    const { plugin } = await loadPlugin();
+    Object.defineProperty(plugin.controller, "ready", { get: () => true });
+
+    plugin.controller.syncIfChanged = async () => {
+      throw new Error("Drive 503");
+    };
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    expect(plugin.lastSyncError).toBe("Drive 503");
+
+    plugin.controller.syncIfChanged = async () => null;
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    expect(plugin.lastSyncError).toBeNull();
+  });
+
+  it("サイドバーの操作が走っている間、自動同期は断られに行かない", async () => {
+    const { plugin } = await loadPlugin();
+    Object.defineProperty(plugin.controller, "ready", { get: () => true });
+    Object.defineProperty(plugin.controller, "busy", { get: () => true });
+    let called = false;
+    plugin.controller.syncIfChanged = async () => {
+      called = true;
+      return null;
+    };
+
+    await plugin.runSync({ probeFirst: true, quiet: true });
+
+    expect(called).toBe(false);
+    expect(plugin.lastSyncError).toBeNull();
+  });
 });
 
 describe("設定画面", () => {

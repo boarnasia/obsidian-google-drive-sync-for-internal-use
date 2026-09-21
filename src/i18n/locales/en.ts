@@ -87,6 +87,7 @@ export const en = {
   panelChecking: "Checking what has changed…",
   panelReady: "✓ Ready to sync.",
   panelBlocked: "⚠ Uploads are on hold.",
+  panelSyncFailed: (message: string): string => `✗ Last sync failed: ${message}`,
   reasonNoBaseline:
     'This vault has not been pulled from Drive yet, and both sides have files. Run "Pull from Drive" to bring the remote copy here first.',
   reasonVaultEmpty:

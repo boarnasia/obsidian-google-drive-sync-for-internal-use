@@ -86,6 +86,7 @@ export const es: Strings = {
   panelChecking: "Comprobando qué ha cambiado…",
   panelReady: "✓ Listo para sincronizar.",
   panelBlocked: "⚠ Las subidas están en pausa.",
+  panelSyncFailed: (message) => `✗ La última sincronización falló: ${message}`,
   reasonNoBaseline:
     "Esta bóveda todavía no se ha traído desde Drive y hay archivos en ambos lados. Ejecuta «Traer desde Drive» primero.",
   reasonVaultEmpty:

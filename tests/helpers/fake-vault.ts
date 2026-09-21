@@ -19,6 +19,12 @@ export class FakeVault {
   trashed: { path: string; system: boolean }[] = [];
   /** true の間、OS ゴミ箱への移動は失敗する（フォールバックの検証用）。 */
   systemTrashBroken = false;
+  /**
+   * 変更イベントの受け手。本物と同じく、書き込みの Promise が解決する *前* に呼ぶ
+   * （Obsidian はアダプタの書き込みの中で modify / create / delete を発火する）。
+   */
+  onChange: (type: "create" | "modify" | "delete", path: string) => void = () => undefined;
+  private clock = 1000;
 
   constructor() {
     this.folders.set("", new TFolder(""));
@@ -28,8 +34,10 @@ export class FakeVault {
 
   seed(path: string, content: string, mtime = 1): TFile {
     const file = new TFile(path, mtime);
+    const data = new TextEncoder().encode(content).buffer;
+    file.stat.size = data.byteLength;
     this.files.set(path, file);
-    this.bytes.set(path, new TextEncoder().encode(content).buffer);
+    this.bytes.set(path, data);
     this.link(path, file);
     return file;
   }
@@ -89,21 +97,28 @@ export class FakeVault {
 
   async createBinary(path: string, data: ArrayBuffer): Promise<TFile> {
     if (this.files.has(path)) throw new Error("already exists: " + path);
-    const file = new TFile(path, 1);
+    const file = new TFile(path, ++this.clock);
+    file.stat.size = data.byteLength;
     this.files.set(path, file);
     this.bytes.set(path, data);
     this.link(path, file);
+    this.onChange("create", path);
     return file;
   }
 
   async modifyBinary(file: TFile, data: ArrayBuffer): Promise<void> {
     if (!this.files.has(file.path)) throw new Error("not found: " + file.path);
     this.bytes.set(file.path, data);
+    file.stat.mtime = ++this.clock;
+    file.stat.size = data.byteLength;
+    this.onChange("modify", file.path);
   }
 
   async createFolder(path: string): Promise<TFolder> {
     if (this.folders.has(path)) throw new Error("already exists: " + path);
-    return this.ensureFolder(path);
+    const folder = this.ensureFolder(path);
+    this.onChange("create", path);
+    return folder;
   }
 
   async trash(file: TAbstractFile, system: boolean): Promise<void> {
@@ -116,6 +131,7 @@ export class FakeVault {
       const i = folder.children.indexOf(file);
       if (i >= 0) folder.children.splice(i, 1);
     }
+    this.onChange("delete", file.path);
   }
 }
 
