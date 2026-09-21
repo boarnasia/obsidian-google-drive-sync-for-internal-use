@@ -1,6 +1,7 @@
 /*
  * パスの取り扱い。リモートが返した文字列がそのまま書き込み先になる以上、
- * ここが Vault の外への書き込みを止める最後の関門である。
+ * ここが `..` による Vault の外への脱出を止める。設定ディレクトリへの書き込みは
+ * 通すので、それは ObsidianLocalStore がもう一段で止める。
  */
 import { describe, expect, it } from "vitest";
 import { conflictPath, safeVaultPath } from "../../src/util/paths";
