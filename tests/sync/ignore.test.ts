@@ -6,6 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { ignoreMatcher, parseIgnore } from "../../src/sync/ignore";
+import { TEAM_IGNORE_TEMPLATE, localIgnoreTemplate } from "../../src/sync/configFiles";
 
 const match = (rules: string) => ignoreMatcher(rules);
 
@@ -113,5 +114,49 @@ describe("重ね方", () => {
   it("設定ファイルが無くても動く", () => {
     const ignored = ignoreMatcher(null, undefined);
     expect(ignored("a.md")).toBe(false);
+  });
+});
+
+/*
+ * 初期投入されるファイルは、この parser が読む。Markdown の散文として書くと
+ * 説明の一行一行が規則になり、どれが設定でどれが説明かが読めなくなる。
+ * 「説明は必ず # で始まる」ことを、テンプレート側で保証する。
+ */
+describe("初期投入されるファイル", () => {
+  const LOCAL = localIgnoreTemplate({
+    title: "自分だけの除外規則",
+    body: "ここに書いた規則は自分の Vault にだけ効きます。# はコメント、* ? ** はグロブ、先頭の / は同期ルート固定、末尾の / はフォルダ、! は打ち消しです。",
+  });
+
+  it("チームのテンプレートは、書いてある規則だけを持つ", () => {
+    expect(parseIgnore(TEAM_IGNORE_TEMPLATE)).toHaveLength(2);
+
+    const ignored = match(TEAM_IGNORE_TEMPLATE);
+    expect(ignored("Drafts/案.md")).toBe(true);
+    expect(ignored("作業.tmp")).toBe(true);
+    expect(ignored("議事録.md")).toBe(false);
+  });
+
+  it("各自のテンプレートは規則を一つも持たない（白紙から始まる）", () => {
+    expect(parseIgnore(LOCAL)).toEqual([]);
+  });
+
+  it("説明の行はすべて # で始まる", () => {
+    const prose = (text: string): string[] =>
+      text
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .filter((line) => !line.startsWith("#"));
+
+    expect(prose(TEAM_IGNORE_TEMPLATE)).toEqual(["Drafts/", "*.tmp"]);
+    expect(prose(LOCAL)).toEqual([]);
+  });
+
+  /*
+   * 翻訳は後から増える。`#` を付けるのは文面ではなくテンプレート側の仕事にしてある。
+   */
+  it("翻訳が # を付け忘れても規則にならない", () => {
+    const careless = localIgnoreTemplate({ title: "!全部戻す", body: "*.md\n下書き/" });
+    expect(parseIgnore(careless)).toEqual([]);
   });
 });

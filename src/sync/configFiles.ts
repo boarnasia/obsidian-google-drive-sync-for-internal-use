@@ -11,26 +11,36 @@ export const TEAM_IGNORE_PATH = `${SYNC_DIR}/ignore.md`;
 export const TEAM_README_PATH = `${SYNC_DIR}/README.md`;
 export const LOCAL_IGNORE_PATH = `${SYNC_LOCAL_DIR}/ignore.md`;
 
-/** 共有される説明は英語で固定する（ADR-0006）。 */
-export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules
-
-Files matching these rules are **not synced** for anyone on the team. This file is
-itself synced, so everybody gets the same rules.
-
-Ignoring is not deleting. A file that is already synced and later matches a rule
-stays where it is on both sides — it simply stops being synced.
-
-Syntax (a subset of \`.gitignore\`):
-
-- Lines starting with \`#\` are comments. Blank lines are ignored.
-- \`*\` matches within one path segment, \`**\` crosses folders, \`?\` is one character.
-- A leading \`/\` anchors the rule to the sync root.
-- A trailing \`/\` matches folders only, and everything inside them.
-- \`!\` un-ignores something an earlier rule matched.
-
-\`_SyncLocal/\` is always ignored, and \`_Sync/ignore.md\` can never be ignored.
-
-Write one rule per line below.
+/**
+ * 共有される説明は英語で固定する（ADR-0006）。
+ *
+ * 説明の行はすべて `#` で始める。このファイルの読み手は Markdown ではなく
+ * `parseIgnore` であり、そこでは `#` で始まらない行がすべて規則になる。Markdown の
+ * 散文として書くと、説明の一行一行が規則として登録される。
+ */
+export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules — paths that are never synced, for anyone on the team.
+#
+# This file is itself synced, so the whole team gets the same rules.
+#
+# Ignoring is not deleting. A file that is already synced and later matches a
+# rule stays where it is on both sides. It simply stops being synced.
+#
+# Lines starting with "#" are comments, and blank lines are skipped.
+# Every other line is a rule, including a sentence you meant as a note.
+#
+# Syntax (a subset of .gitignore):
+#
+#   *       matches within one path segment
+#   **      crosses folders
+#   ?       one character
+#   /foo    anchored to the sync root
+#   foo/    folders only, and everything inside them
+#   !foo    un-ignores what an earlier rule matched
+#
+# Later rules win. _SyncLocal/ is always ignored, and _Sync/ignore.md can
+# never be ignored.
+#
+# Write one rule per line below.
 
 Drafts/
 *.tmp
@@ -61,6 +71,21 @@ the team points the plugin at the same Drive folder.
   not uploaded.
 `;
 
+/**
+ * 説明として渡された文を、そのまま規則にしないための一手間。空行も `#` にする——
+ * 素の空行は読み飛ばされるが、翻訳が段落を含んでも扱いが変わらない方がよい。
+ */
+function commentOut(text: string): string {
+  return text
+    .split(/\r?\n/)
+    .map((line) => (line.trim() ? `# ${line.trim()}` : "#"))
+    .join("\n");
+}
+
+/**
+ * 各自の除外ファイル。中身は利用者の UI 言語で作るので、説明の文面は翻訳から来る。
+ * 翻訳者が `#` を付け忘れても規則にならないよう、ここで必ず付ける。
+ */
 export function localIgnoreTemplate(labels: { title: string; body: string }): string {
-  return `# ${labels.title}\n\n${labels.body}\n`;
+  return `${commentOut(labels.title)}\n#\n${commentOut(labels.body)}\n`;
 }
