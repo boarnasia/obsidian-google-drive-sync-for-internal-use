@@ -179,11 +179,9 @@ export default class GoogleDriveSyncPlugin extends Plugin {
 
   /** 自分が書いたパスを控える。戻ってくるイベントを数えないため。 */
   private rememberOwnWrites(report: SyncReport): void {
-    const mount = this.settings.mountFolder.replace(/^\/+|\/+$/g, "");
-    const toVaultPath = (p: string): string => (mount ? `${mount}/${p}` : p);
-    for (const p of report.downloaded) this.selfWritten.add(toVaultPath(p));
-    for (const p of report.deletedLocal) this.selfWritten.add(toVaultPath(p));
-    for (const c of report.conflicts) this.selfWritten.add(toVaultPath(c.conflictPath));
+    for (const p of report.downloaded) this.selfWritten.add(p);
+    for (const p of report.deletedLocal) this.selfWritten.add(p);
+    for (const c of report.conflicts) this.selfWritten.add(c.conflictPath);
   }
 
   private didSomething(r: SyncReport): boolean {
@@ -284,7 +282,7 @@ function targetPathSegments(target: DriveTarget): string[] {
 const CREDENTIALS_URL = "https://console.cloud.google.com/apis/credentials";
 
 /** 名前で読み書きされる、宣言的コントロールに紐づく設定キー。 */
-type ControlKey = "language" | "oauthClientId" | "targetUrl" | "mountFolder";
+type ControlKey = "language" | "oauthClientId" | "targetUrl";
 
 const asString = (v: unknown): string => (typeof v === "string" ? v : "");
 
@@ -339,13 +337,10 @@ class SettingTab extends PluginSettingTab {
       case "targetUrl":
         s.targetUrl = asString(value).trim();
         break;
-      case "mountFolder":
-        s.mountFolder = asString(value).trim();
-        break;
     }
     await this.plugin.saveSettings();
 
-    if (key === "language" || key === "mountFolder") this.update();
+    if (key === "language") this.update();
   }
 
   // -------------------------------------------------------------- 行の部品
@@ -454,7 +449,6 @@ class SettingTab extends PluginSettingTab {
   }
 
   private targetGroup(): SettingDefinitionItem {
-    const s = this.plugin.settings;
     const c = this.plugin.controller;
 
     const buttons: { label: string; cta?: boolean; destructive?: boolean; onClick: () => void }[] = [
@@ -488,15 +482,6 @@ class SettingTab extends PluginSettingTab {
               setting.setDesc(this.targetStatus());
             });
           },
-        },
-        {
-          name: t.mountName,
-          desc: t.mountDesc,
-          control: { type: "text", key: "mountFolder", placeholder: t.mountPlaceholder },
-        },
-        {
-          name: "",
-          desc: s.mountFolder ? t.mountMapping(s.mountFolder) : t.mountMappingWholeVault,
         },
       ],
     };

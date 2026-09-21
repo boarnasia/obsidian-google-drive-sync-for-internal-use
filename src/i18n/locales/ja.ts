@@ -64,13 +64,6 @@ export const ja: Strings = {
   targetMyDriveWarning:
     "⚠ マイドライブ（個人）に置いても他の誰にも届きません。チームで使うなら共有ドライブのフォルダを指定してください。",
 
-  mountName: "ローカルのフォルダ",
-  mountDesc:
-    "この Vault のどのフォルダを共有Vault にするか。その中身が同期先フォルダの中身に対応します。フォルダ名自体は Drive 上に現れないので、各自が別の名前を付けて構いません。空欄なら Vault 全体。",
-  mountPlaceholder: "（Vault 全体）",
-  mountMapping: (local) => `${local}/ ⇄ 同期先フォルダ`,
-  mountMappingWholeVault: "Vault 全体 ⇄ 同期先フォルダ",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "同期",
   syncNowName: "今すぐ同期",

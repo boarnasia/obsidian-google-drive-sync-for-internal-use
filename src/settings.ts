@@ -26,8 +26,6 @@ export interface Settings {
   /** 入力欄に出し直すためだけに持つ。 */
   targetUrl: string;
   target: DriveTarget | null;
-  /** "" なら Vault 全体。直下が同期ルート直下に対応する（ADR-0004）。 */
-  mountFolder: string;
 
   // --- 同期の挙動 ---
   autoSync: boolean;
@@ -56,7 +54,6 @@ export const DEFAULT_SETTINGS: Settings = {
 
   targetUrl: "",
   target: null,
-  mountFolder: "",
 
   autoSync: true,
   pollMinutes: 1,

@@ -118,12 +118,11 @@ describe("設定画面", () => {
     expect(keys.filter((k) => !(k in DEFAULT_SETTINGS))).toEqual([]);
   });
 
-  it("同期先・マウント・言語の行がある", async () => {
+  it("同期先・言語の行がある", async () => {
     const { tab } = await loadPlugin();
     const names = flatten(tab.getSettingDefinitions()).map((i) => i.name);
 
     expect(names).toContain(t.targetUrlName);
-    expect(names).toContain(t.mountName);
     expect(names).toContain(t.languageName);
   });
 
@@ -160,13 +159,6 @@ describe("設定の読み書き", () => {
     expect(plugin.settings.targetUrl).toBe("https://drive.google.com/drive/folders/abc");
   });
 
-  it("マウントフォルダも同じ", async () => {
-    const { plugin, tab } = await loadPlugin();
-    await tab.setControlValue("mountFolder", " 仕事 ");
-
-    expect(plugin.settings.mountFolder).toBe("仕事");
-  });
-
   it("自動同期の入切はサイドバーから入る", async () => {
     const { plugin } = await loadPlugin();
     await plugin.setAutoSync(false);
@@ -188,9 +180,9 @@ describe("設定の読み書き", () => {
 
   it("読み戻しも同じキーで揃う", async () => {
     const { tab } = await loadPlugin();
-    await tab.setControlValue("mountFolder", " 仕事 ");
+    await tab.setControlValue("targetUrl", " https://drive.google.com/drive/folders/abc ");
 
-    expect(tab.getControlValue("mountFolder")).toBe("仕事");
+    expect(tab.getControlValue("targetUrl")).toBe("https://drive.google.com/drive/folders/abc");
   });
 });
 
@@ -290,9 +282,9 @@ describe("言語", () => {
 
 describe("保存済み設定の復元", () => {
   it("保存済みの設定が読み戻り、欠けているキーは既定値で埋まる", async () => {
-    const { plugin } = await loadPlugin({ mountFolder: "仕事", pollMinutes: 7, language: "ja" });
+    const { plugin } = await loadPlugin({ targetUrl: "https://drive.google.com/drive/folders/abc", pollMinutes: 7, language: "ja" });
 
-    expect(plugin.settings.mountFolder).toBe("仕事");
+    expect(plugin.settings.targetUrl).toBe("https://drive.google.com/drive/folders/abc");
     expect(plugin.settings.pollMinutes).toBe(7);
     expect(plugin.settings.autoSync).toBe(DEFAULT_SETTINGS.autoSync);
   });

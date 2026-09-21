@@ -142,17 +142,6 @@ describe("同期の一往復", () => {
     expect(vault.contentOf("共有/連絡.md")).toBe("お知らせ");
   });
 
-  it("マウントポイントの直下が同期ルートの直下に対応する", async () => {
-    settings.mountFolder = "仕事";
-    vault.seed("仕事/顧客/A社.md", "a");
-    vault.seed("個人メモ/日記.md", "private");
-
-    await connected().sync();
-
-    // フォルダ名「仕事」はリモートに現れず、Vault の他の場所は触られない。
-    expect(drive.contents()).toEqual({ "顧客/A社.md": "a" });
-  });
-
   it("二度目の同期は何もしない", async () => {
     vault.seed("a.md", "x");
     const c = connected();

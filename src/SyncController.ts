@@ -278,7 +278,7 @@ export class SyncController {
   }
 
   private store(): ObsidianLocalStore {
-    return new ObsidianLocalStore(this.app, this.settings.mountFolder);
+    return new ObsidianLocalStore(this.app);
   }
 
   private async engineFor(target: DriveTarget): Promise<SyncEngine> {

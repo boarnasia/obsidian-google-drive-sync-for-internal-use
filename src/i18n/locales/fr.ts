@@ -64,13 +64,6 @@ export const fr: Strings = {
   targetMyDriveWarning:
     "⚠ Les fichiers de Mon Drive (personnel) ne parviennent à personne d’autre. Utilisez un dossier d’un Drive partagé pour synchroniser en équipe.",
 
-  mountName: "Dossier local",
-  mountDesc:
-    "Le dossier de ce coffre qui sert de coffre partagé. Son contenu correspond à celui du dossier cible ; le nom du dossier n’apparaît jamais sur Drive, chacun peut donc le nommer différemment. Vide = tout le coffre.",
-  mountPlaceholder: "(tout le coffre)",
-  mountMapping: (local) => `${local}/ ⇄ le dossier cible`,
-  mountMappingWholeVault: "tout le coffre ⇄ le dossier cible",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Synchronisation",
   syncNowName: "Synchroniser maintenant",

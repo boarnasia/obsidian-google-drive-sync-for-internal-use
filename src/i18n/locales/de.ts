@@ -64,13 +64,6 @@ export const de: Strings = {
   targetMyDriveWarning:
     "⚠ Dateien in „Meine Ablage“ (persönlich) erreichen niemanden sonst. Verwende für die Team-Synchronisierung einen Ordner in einer geteilten Ablage.",
 
-  mountName: "Lokaler Ordner",
-  mountDesc:
-    "Welcher Ordner dieses Tresors der gemeinsame Tresor ist. Sein Inhalt entspricht dem Inhalt des Zielordners – der Ordnername selbst erscheint nie in Drive, daher kann jede Person ihn anders nennen. Leer = der ganze Tresor.",
-  mountPlaceholder: "(ganzer Tresor)",
-  mountMapping: (local) => `${local}/ ⇄ Zielordner`,
-  mountMappingWholeVault: "ganzer Tresor ⇄ Zielordner",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Synchronisierung",
   syncNowName: "Jetzt synchronisieren",

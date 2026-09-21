@@ -64,13 +64,6 @@ export const ko: Strings = {
   targetMyDriveWarning:
     "⚠ 내 드라이브(개인)에 있는 파일은 다른 사람에게 전달되지 않습니다. 팀 동기화에는 공유 드라이브 폴더를 사용하세요.",
 
-  mountName: "로컬 폴더",
-  mountDesc:
-    "이 보관소의 어느 폴더를 공유 보관소로 쓸지 지정합니다. 그 내용이 대상 폴더의 내용과 대응됩니다. 폴더 이름 자체는 드라이브에 나타나지 않으므로 각자 다른 이름을 써도 됩니다. 비워 두면 보관소 전체입니다.",
-  mountPlaceholder: "(보관소 전체)",
-  mountMapping: (local) => `${local}/ ⇄ 대상 폴더`,
-  mountMappingWholeVault: "보관소 전체 ⇄ 대상 폴더",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "동기화",
   syncNowName: "지금 동기화",

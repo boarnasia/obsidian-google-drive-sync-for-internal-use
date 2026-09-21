@@ -60,13 +60,6 @@ export const zhTW: Strings = {
   targetOnMyDrive: (path) => `我的雲端硬碟 - ${path}`,
   targetMyDriveWarning: "⚠「我的雲端硬碟」（個人）中的檔案不會傳給其他人。團隊同步請使用共用雲端硬碟中的資料夾。",
 
-  mountName: "本機資料夾",
-  mountDesc:
-    "將本儲存庫中的哪個資料夾作為共用儲存庫。其內容對應到同步目標資料夾的內容；資料夾名稱本身不會出現在雲端硬碟上，因此每個人都可以使用不同的名稱。留空表示整個儲存庫。",
-  mountPlaceholder: "（整個儲存庫）",
-  mountMapping: (local) => `${local}/ ⇄ 同步目標資料夾`,
-  mountMappingWholeVault: "整個儲存庫 ⇄ 同步目標資料夾",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "同步",
   syncNowName: "立即同步",

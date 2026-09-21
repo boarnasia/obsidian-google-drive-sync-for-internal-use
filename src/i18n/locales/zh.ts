@@ -60,13 +60,6 @@ export const zh: Strings = {
   targetOnMyDrive: (path) => `我的云端硬盘 - ${path}`,
   targetMyDriveWarning: "⚠ “我的云端硬盘”（个人）中的文件不会被其他人收到。团队同步请使用共享云端硬盘中的文件夹。",
 
-  mountName: "本地文件夹",
-  mountDesc:
-    "将本仓库中的哪个文件夹作为共享仓库。其内容与同步目标文件夹的内容相对应；文件夹名本身不会出现在云端硬盘上，因此每个人都可以使用不同的名称。留空表示整个仓库。",
-  mountPlaceholder: "（整个仓库）",
-  mountMapping: (local) => `${local}/ ⇄ 同步目标文件夹`,
-  mountMappingWholeVault: "整个仓库 ⇄ 同步目标文件夹",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "同步",
   syncNowName: "立即同步",

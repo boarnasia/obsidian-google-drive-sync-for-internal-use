@@ -64,13 +64,6 @@ export const es: Strings = {
   targetMyDriveWarning:
     "⚠ Los archivos de Mi unidad (personal) no llegan a nadie más. Usa una carpeta de una unidad compartida para sincronizar en equipo.",
 
-  mountName: "Carpeta local",
-  mountDesc:
-    "Qué carpeta de esta bóveda es la bóveda compartida. Su contenido se corresponde con el de la carpeta de destino; el nombre de la carpeta no aparece en Drive, así que cada persona puede llamarla distinto. Vacío = toda la bóveda.",
-  mountPlaceholder: "(toda la bóveda)",
-  mountMapping: (local) => `${local}/ ⇄ la carpeta de destino`,
-  mountMappingWholeVault: "toda la bóveda ⇄ la carpeta de destino",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Sincronización",
   syncNowName: "Sincronizar ahora",

@@ -65,13 +65,6 @@ export const en = {
   targetOnMyDrive: (path: string): string => `My Drive - ${path}`,
   targetMyDriveWarning: "⚠ Files in My Drive (personal) reach nobody else. Use a shared drive folder for team sync.",
 
-  mountName: "Local folder",
-  mountDesc:
-    "Which folder of this vault is the shared vault. Its contents map onto the target folder's contents — the folder name itself never appears on Drive, so everyone can name it differently. Blank = the whole vault.",
-  mountPlaceholder: "(whole vault)",
-  mountMapping: (local: string): string => `${local}/ ⇄ the target folder`,
-  mountMappingWholeVault: "the whole vault ⇄ the target folder",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Sync",
   syncNowName: "Sync now",

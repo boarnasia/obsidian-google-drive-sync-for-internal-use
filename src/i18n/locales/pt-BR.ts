@@ -65,13 +65,6 @@ export const ptBR: Strings = {
   targetMyDriveWarning:
     "⚠ Arquivos no Meu Drive (pessoal) não chegam a mais ninguém. Use uma pasta de um drive compartilhado para sincronizar em equipe.",
 
-  mountName: "Pasta local",
-  mountDesc:
-    "Qual pasta deste cofre é o cofre compartilhado. O conteúdo dela corresponde ao da pasta de destino — o nome da pasta nunca aparece no Drive, então cada pessoa pode chamá-la de um jeito. Em branco = o cofre inteiro.",
-  mountPlaceholder: "(cofre inteiro)",
-  mountMapping: (local) => `${local}/ ⇄ a pasta de destino`,
-  mountMappingWholeVault: "o cofre inteiro ⇄ a pasta de destino",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Sincronização",
   syncNowName: "Sincronizar agora",

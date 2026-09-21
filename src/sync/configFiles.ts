@@ -47,9 +47,9 @@ Drafts/
 
 export const TEAM_README_TEMPLATE = `# Google Drive Sync
 
-This vault — or the folder mounted as the shared vault — is synced with a Google
-Drive folder through the "Google Drive Sync (Internal Use)" plugin. Everyone on
-the team points the plugin at the same Drive folder.
+This vault is synced with a Google Drive folder through the "Google Drive Sync
+(Internal Use)" plugin. Everyone on the team points the plugin at the same Drive
+folder.
 
 ## The two config folders
 
