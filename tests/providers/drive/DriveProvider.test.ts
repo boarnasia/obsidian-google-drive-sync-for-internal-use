@@ -293,6 +293,28 @@ describe("速さのための約束", () => {
   });
 });
 
+/** 変更プローブが、ドライブ全体の変更からルートの中のものを選ぶための材料。 */
+describe("同期ルートの中の ID", () => {
+  it("ルート自身と、走査で見たフォルダとファイルを持つ", async () => {
+    const fileId = drive.seed("議事録/2026/a.md", "x");
+    const p = provider();
+    await p.list();
+
+    const ids = p.insideIds();
+    expect(ids.has(ROOT)).toBe(true);
+    expect(ids.has(fileId)).toBe(true);
+    // 途中のフォルダも入る。その下での新規作成は、親の ID で捕まえる。
+    expect(ids.size).toBe(4);
+  });
+
+  it("このインスタンスが作ったファイルとフォルダも持つ", async () => {
+    const p = provider();
+    await p.put("新しい/b.md", enc("y"));
+
+    expect(p.insideIds().size).toBe(3); // ルート・新しいフォルダ・新しいファイル
+  });
+});
+
 describe("escapeDriveQuery", () => {
   it("クエリを閉じてしまう引用符を潰す", () => {
     expect(escapeDriveQuery("O'Brien.md")).toBe("O\\'Brien.md");

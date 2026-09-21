@@ -29,6 +29,8 @@ let settings: Settings;
 let persisted: number;
 /** Changes API が返す「変更あり」の件数。プローブの分岐を試すために差し替える。 */
 let changes: unknown[];
+/** changes.list の応答の状態。保存したトークンが使えなくなった場合を試すために差し替える。 */
+let changesStatus: number;
 let startToken: string;
 let tokenRequests: number;
 /** 送った順に種類を並べた記録。起点の取得が走査より前であることを見る。 */
@@ -41,6 +43,7 @@ beforeEach(() => {
   settings = structuredClone(DEFAULT_SETTINGS);
   persisted = 0;
   changes = [];
+  changesStatus = 200;
   startToken = "start-1";
   tokenRequests = 0;
   calls = [];
@@ -58,7 +61,7 @@ const http: HttpSend = async (method, url, headers, body) => {
   }
   if (url.includes("/changes?")) {
     calls.push("changes");
-    return reply(JSON.stringify({ changes }));
+    return reply(JSON.stringify({ changes, newStartPageToken: startToken }), changesStatus);
   }
   calls.push(url.includes("/files?q=") ? "list" : "drive");
   return drive.http(method, url, headers, body);
@@ -238,13 +241,54 @@ describe("変更プローブ", () => {
     expect(await c.syncIfChanged()).toBeNull();
   });
 
-  it("変更があれば同期する", async () => {
+  it("同期ルートの中に変更があれば同期する", async () => {
+    vault.seed("a.md", "x");
+    const c = connected();
+    await c.sync();
+
+    drive.seed("b.md", "他の人が書いた");
+    changes = [{ fileId: "new", file: { parents: [ROOT] } }];
+
+    const report = await c.syncIfChanged();
+    expect(report?.downloaded).toEqual(["b.md"]);
+  });
+
+  it("同期ルートの外の変更だけなら同期せず、起点を先へ進める", async () => {
+    vault.seed("a.md", "x");
+    const c = connected();
+    await c.sync();
+    calls = [];
+
+    changes = [{ fileId: "other", file: { parents: ["同じ共有ドライブの別フォルダ"] } }];
+    startToken = "start-2";
+
+    expect(await c.syncIfChanged()).toBeNull();
+    expect(calls).not.toContain("list");
+    // 進めないと、同じ変更を毎回読み直す。
+    expect(settings.changeToken[ROOT]).toBe("start-2");
+  });
+
+  it("起動直後はルートの中が分からないので、変更の中身を見ずに同期する", async () => {
     settings.changeToken[ROOT] = "start-1";
-    changes = [{ fileId: "x" }];
     vault.seed("a.md", "x");
 
     const report = await connected().syncIfChanged();
     expect(report?.uploaded).toEqual(["a.md"]);
+    expect(calls).not.toContain("changes");
+  });
+
+  it("保存したトークンが使えなくなっていたら、同期して起点を取り直す", async () => {
+    vault.seed("a.md", "x");
+    const c = connected();
+    await c.sync();
+
+    changesStatus = 400;
+    startToken = "start-2";
+    drive.seed("b.md", "届くべき更新");
+
+    const report = await c.syncIfChanged();
+    expect(report?.downloaded).toEqual(["b.md"]);
+    expect(settings.changeToken[ROOT]).toBe("start-2");
   });
 
   it("トークンが無ければ（初回・失効）同期する側に倒れる", async () => {

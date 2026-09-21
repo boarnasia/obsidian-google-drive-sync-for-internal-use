@@ -1,6 +1,6 @@
 import { App } from "obsidian";
 import { DriveProvider } from "./providers/drive/DriveProvider";
-import { getStartToken, hasChanges } from "./providers/drive/ChangeProbe";
+import { getStartToken, probeChanges } from "./providers/drive/ChangeProbe";
 import { resolveDriveTarget } from "./providers/drive/DriveTarget";
 import { TokenSet, refreshAccessToken } from "./providers/google/oauth";
 import { googleLoginLoopback } from "./obsidian/googleLogin";
@@ -60,6 +60,12 @@ export class SyncController {
   private readonly ownWrites = new Set<string>();
   /** 直近の同期が止まったか。止まっている間は、ローカルの差分だけでは同期し直さない。 */
   private lastBlocked = false;
+  /**
+   * 同期ルートごとの、直前の走査で分かった中の ID。変更プローブがルートの外の変更を
+   * 読み飛ばすのに使う。保存はしない——起動後の最初の確認は判断できずに同期するが、
+   * その走査でまた分かる。
+   */
+  private readonly insideIds = new Map<string, Set<string>>();
 
   constructor(
     private readonly app: App,
@@ -181,9 +187,17 @@ export class SyncController {
   async syncIfChanged(): Promise<SyncReport | null> {
     const target = this.requireTarget();
     if (!this.lastBlocked && (await this.hasLocalChanges(target))) return this.sync();
-    const saved = this.settings.changeToken[target.folderId] ?? "";
-    if (saved && !(await hasChanges(this.http, () => this.getToken(), target.driveId, saved))) return null;
-    return this.sync();
+    const key = target.folderId;
+    const saved = this.settings.changeToken[key] ?? "";
+    const probe = await probeChanges(this.http, () => this.getToken(), target.driveId, saved, this.insideIds.get(key) ?? null);
+    if (probe.changed) return this.sync();
+    // ルートの外の変更だけなら起点を進める。進めないと、同じ変更を毎回読み直す。
+    // 同期が走っているなら、その同期が起点を書くので触らない。
+    if (probe.nextToken && probe.nextToken !== saved && !this.running) {
+      this.settings.changeToken[key] = probe.nextToken;
+      await this.persist();
+    }
+    return null;
   }
 
   /** 手動、およびローカルの変更を起点とする同期。必ず走る。 */
@@ -198,7 +212,9 @@ export class SyncController {
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await (await this.engineFor(target)).sync(this.settings.syncState[key] ?? {}, opts);
+    const remote = this.remoteFor(target);
+    const { state, report } = await (await this.engineFor(target, remote)).sync(this.settings.syncState[key] ?? {}, opts);
+    this.insideIds.set(key, remote.insideIds());
     this.lastBlocked = report.blocked.length > 0;
     // 上がった、あるいは消えたファイルは、もう分類の対象ではない。
     const stillLocalOnly = new Set(report.localOnly);
@@ -222,7 +238,9 @@ export class SyncController {
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await (await this.engineFor(target)).clone(this.settings.syncState[key] ?? {});
+    const remote = this.remoteFor(target);
+    const { state, report } = await (await this.engineFor(target, remote)).clone(this.settings.syncState[key] ?? {});
+    this.insideIds.set(key, remote.insideIds());
     this.lastBlocked = false;
     // 取り込みは両側を数え直すので、未整理も持ち越さずに作り直す。
     this.settings.unsorted[key] = [...report.localOnly];
@@ -311,14 +329,18 @@ export class SyncController {
     return new ObsidianLocalStore(this.app, (path) => this.ownWrites.add(path));
   }
 
-  private async engineFor(target: DriveTarget): Promise<SyncEngine> {
+  private remoteFor(target: DriveTarget): DriveProvider {
+    return new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http);
+  }
+
+  private async engineFor(target: DriveTarget, remote: DriveProvider = this.remoteFor(target)): Promise<SyncEngine> {
     const local = this.store();
     const [team, mine] = await Promise.all([local.readText(TEAM_IGNORE_PATH), local.readText(LOCAL_IGNORE_PATH)]);
     // 未整理のものだけを止める。分類し終えたファイルは、もうこの集合に居ない。
     const held = new Set(this.unsortedOf(target.folderId));
     return new SyncEngine(
       local,
-      new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http),
+      remote,
       () => new Date(),
       undefined,
       undefined,
