@@ -9,6 +9,7 @@
 import { requestUrl } from "obsidian";
 import { Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { REQUEST_TIMEOUT_MS, requestUrlHttp } from "../../src/obsidian/requestUrlHttp";
+import { RequestTimeoutError } from "../../src/providers/RemoteProvider";
 
 vi.mock("obsidian", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../tests/helpers/obsidian-mock")>()),
@@ -99,6 +100,8 @@ describe("requestUrlHttp", () => {
 
     expect(scheduledMs).toBe(REQUEST_TIMEOUT_MS);
     await expect(p).rejects.toThrow(`timed out after ${SECONDS}`);
+    // 再試行のラッパは、これを見て送り直さない。
+    await expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
   });
 
   it("時間切れの文面にホストだけを出す（クエリを漏らさない）", async () => {

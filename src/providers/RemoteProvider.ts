@@ -26,6 +26,14 @@ export interface HttpResponse {
 }
 
 /**
+ * The transport gave up waiting for a response. Whether the request reached the
+ * server is unknown, and the wait already hit the ceiling, so it is not retried.
+ */
+export class RequestTimeoutError extends Error {
+  override name = "RequestTimeoutError";
+}
+
+/**
  * Transport seam (DIP). The plugin wires Obsidian's `requestUrl`, which is not
  * subject to CORS as browser `fetch` is; tests wire in-memory fakes.
  */

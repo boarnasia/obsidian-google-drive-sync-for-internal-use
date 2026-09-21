@@ -1,5 +1,5 @@
 import { requestUrl } from "obsidian";
-import { HttpSend } from "../providers/RemoteProvider";
+import { HttpSend, RequestTimeoutError } from "../providers/RemoteProvider";
 
 /**
  * Hard ceiling for a single request. Obsidian's `requestUrl` has no built-in
@@ -42,7 +42,7 @@ export const requestUrlHttp: HttpSend = async (method, url, headers, body) => {
 function withTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
   let timer: number | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = window.setTimeout(() => reject(new Error(msg)), ms);
+    timer = window.setTimeout(() => reject(new RequestTimeoutError(msg)), ms);
   });
   return (Promise.race([p, timeout]) as Promise<T>).finally(() => {
     if (timer !== undefined) window.clearTimeout(timer);
