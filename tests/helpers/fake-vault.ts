@@ -6,8 +6,61 @@
  */
 import { TAbstractFile, TFile, TFolder } from "./obsidian-mock";
 
+/**
+ * Vault の索引に載らないドットファイルを置く場所。本物のアダプタと同じく、書いても
+ * 変更イベントは飛ばない。
+ */
+export class FakeAdapter {
+  readonly files = new Map<string, { data: ArrayBuffer; mtime: number }>();
+  trashed: { path: string; system: boolean }[] = [];
+  private clock = 5000;
+
+  seed(path: string, content: string, mtime = 1): void {
+    this.files.set(path, { data: new TextEncoder().encode(content).buffer as ArrayBuffer, mtime });
+  }
+
+  contentOf(path: string): string | undefined {
+    const f = this.files.get(path);
+    return f === undefined ? undefined : new TextDecoder().decode(f.data);
+  }
+
+  async exists(path: string): Promise<boolean> {
+    return this.files.has(path);
+  }
+
+  async stat(path: string): Promise<{ type: "file"; mtime: number; size: number; ctime: number } | null> {
+    const f = this.files.get(path);
+    return f ? { type: "file", mtime: f.mtime, size: f.data.byteLength, ctime: f.mtime } : null;
+  }
+
+  async read(path: string): Promise<string> {
+    return new TextDecoder().decode(await this.readBinary(path));
+  }
+
+  async readBinary(path: string): Promise<ArrayBuffer> {
+    const f = this.files.get(path);
+    if (!f) throw new Error("not found: " + path);
+    return f.data;
+  }
+
+  async writeBinary(path: string, data: ArrayBuffer): Promise<void> {
+    this.files.set(path, { data, mtime: ++this.clock });
+  }
+
+  async trashSystem(path: string): Promise<boolean> {
+    this.trashed.push({ path, system: true });
+    return this.files.delete(path);
+  }
+
+  async trashLocal(path: string): Promise<void> {
+    this.trashed.push({ path, system: false });
+    this.files.delete(path);
+  }
+}
+
 export class FakeVault {
   configDir = ".obsidian";
+  readonly adapter = new FakeAdapter();
 
   private readonly files = new Map<string, TFile>();
   private readonly folders = new Map<string, TFolder>();

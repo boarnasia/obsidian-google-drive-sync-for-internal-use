@@ -121,10 +121,27 @@ export const ptBR: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone concluído — ↓${down}, ${conflicts} cópia(s) de conflito, ${localOnly} arquivo(s) somente local`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Arquivos de configuração",
+  panelIgnoreDesc:
+    "As regras de exclusão da equipe ficam em .tds-ignore, na raiz da pasta sincronizada. O Obsidian não mostra arquivos que começam com ponto, então abra-o em um editor de texto.",
+  btnOpenFile: "Abrir",
+  tipOpenFile: "Abrir no seu editor de texto",
+  btnCopyPath: "Copiar caminho",
+  tipCopyPath: "Copiar o caminho completo para a área de transferência",
+  pathCopied: (p) => `copiado: ${p}`,
+  errOpenFailed: (m) => `não foi possível abrir o arquivo: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `Este plugin está desatualizado (o seu ${mine}, o da equipe ${team}). A sincronização fica pausada até você atualizar.`,
+  panelVersionBehindDesc: "Atualize o plugin pelo BRAT. A sincronização volta assim que as versões coincidirem.",
+  btnUpdateViaBrat: "Atualizar com o BRAT",
+  tipUpdateViaBrat: "Executar o comando do BRAT de verificar e instalar atualizações",
+  errVersionBehind: (mine, team) =>
+    `este plugin (${mine}) é mais antigo que o da equipe (${team}); atualize para sincronizar`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Suas próprias regras de exclusão",
-  localIgnoreBody:
-    "As regras daqui valem só para o seu cofre; este arquivo nunca é sincronizado. Mesma sintaxe de _Sync/ignore.md: # é comentário, * ? ** são curingas, uma / inicial fixa na raiz da sincronização, uma / final casa com pastas e ! desfaz uma exclusão, mas nunca a de um arquivo dentro de uma pasta excluída.",
   panelUnsorted: (n) => `Ainda sem decisão (${n})`,
   panelLocalOnlyDesc: "O Drive não tem estes arquivos. Cada um fica aqui, sem subir, até você decidir.",
   btnShare: "Compartilhar",

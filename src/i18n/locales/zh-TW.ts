@@ -112,10 +112,27 @@ export const zhTW: Strings = {
   panelMore: (n) => `…還有 ${n} 項`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，衝突副本 ${conflicts} 個，僅本機 ${localOnly} 個`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "設定檔",
+  panelIgnoreDesc:
+    "團隊的忽略規則位於同步資料夾頂層的 .tds-ignore。Obsidian 不會列出以點開頭的檔案，請用文字編輯器開啟。",
+  btnOpenFile: "開啟",
+  tipOpenFile: "用文字編輯器開啟",
+  btnCopyPath: "複製路徑",
+  tipCopyPath: "將完整路徑複製到剪貼簿",
+  pathCopied: (p) => `已複製：${p}`,
+  errOpenFailed: (m) => `無法開啟檔案：${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `此外掛版本過舊（你的 ${mine}，團隊 ${team}）。更新前同步已暫停。`,
+  panelVersionBehindDesc: "請透過 BRAT 更新外掛。版本一致後同步將恢復。",
+  btnUpdateViaBrat: "用 BRAT 更新",
+  tipUpdateViaBrat: "執行 BRAT 的「檢查更新並更新」命令",
+  errVersionBehind: (mine, team) =>
+    `此外掛（${mine}）比團隊版本（${team}）舊，請更新後再同步`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "僅自己的忽略規則",
-  localIgnoreBody:
-    "這裡的規則只對你自己的儲存庫生效，本檔案不會被同步。語法與 _Sync/ignore.md 相同：# 是註解，* ? ** 是萬用字元，開頭的 / 固定到同步根目錄，結尾的 / 比對資料夾，! 取消忽略，但無法取消已忽略資料夾內的檔案。",
   panelUnsorted: (n) => `尚未決定（${n} 項）`,
   panelLocalOnlyDesc: "Drive 沒有這些檔案。在你決定之前，它們留在本機，不會上傳。",
   btnShare: "共用",

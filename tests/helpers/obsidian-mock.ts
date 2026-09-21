@@ -261,3 +261,11 @@ export type SettingDefinitionRender = MockSettingDefinition;
 export function getLanguage(): string {
   return "en";
 }
+
+/** ファイルシステムのアダプタ。フルパスの組み立てにだけ使う。 */
+export class FileSystemAdapter {
+  constructor(private readonly base = "/vault") {}
+  getBasePath(): string { return this.base; }
+}
+
+export const Platform = { isMacOS: true, isWin: false, isLinux: false, isDesktopApp: true, isMobile: false };

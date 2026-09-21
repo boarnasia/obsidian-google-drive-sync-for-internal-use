@@ -5,9 +5,16 @@ import { sha256Hex } from "../util/hash";
 import { safeVaultPath } from "../util/paths";
 import { runPool } from "../util/pool";
 import { t } from "../i18n";
+import { TEAM_IGNORE_PATH } from "../sync/configFiles";
 
 /** 同時に中身を読むファイル数。大きな添付が数百件あっても、載るのはこの数だけ。 */
 const HASH_CONCURRENCY = 8;
+
+/**
+ * 同期するドットファイル。Obsidian の Vault API はドットで始まるパスを索引に
+ * 載せないので、これらだけはアダプタで読み書きする（ADR-0007）。
+ */
+const HIDDEN_FILES: readonly string[] = [TEAM_IGNORE_PATH];
 
 /**
  * 共有Vault のローカル側。Vault 全体が同期ルートに対応する。
@@ -67,6 +74,18 @@ export class ObsidianLocalStore implements LocalStore {
       else toHash.push(f);
     }
 
+    for (const path of HIDDEN_FILES) {
+      const stat = await this.app.vault.adapter.stat(path);
+      if (stat?.type !== "file") continue;
+      const { mtime, size } = stat;
+      const cached = known?.get(path);
+      const hash =
+        cached && cached.mtime === mtime && cached.size === size
+          ? cached.hash
+          : await sha256Hex(await this.app.vault.adapter.readBinary(path));
+      out.push({ path, hash, mtime, size });
+    }
+
     // 読むものだけを、上限を付けて読む。全件を一度に読むと、初回同期で Vault の
     // 中身がまるごと同時にメモリに載る。
     await runPool(toHash, HASH_CONCURRENCY, async (f) => {
@@ -80,6 +99,7 @@ export class ObsidianLocalStore implements LocalStore {
 
   async read(path: string): Promise<ArrayBuffer> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) return this.app.vault.adapter.readBinary(full);
     const file = this.app.vault.getFileByPath(full);
     if (!file) throw new Error(t.errLocalMissing(full));
     return this.app.vault.readBinary(file);
@@ -88,11 +108,13 @@ export class ObsidianLocalStore implements LocalStore {
   /**
    * 設定ファイル用。無ければ null を返す。
    *
-   * 同期の対象かどうかとは無関係に読む必要がある（`_SyncLocal/` は同期しないが、
-   * 読み書きはする）。
+   * 同期の対象かどうかとは無関係に読む必要がある（除外規則は、同期が始まる前に読む）。
    */
   async readText(path: string): Promise<string | null> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) {
+      return (await this.app.vault.adapter.exists(full)) ? this.app.vault.adapter.read(full) : null;
+    }
     const file = this.app.vault.getFileByPath(full);
     if (!file) return null;
     return this.app.vault.read(file);
@@ -107,6 +129,13 @@ export class ObsidianLocalStore implements LocalStore {
    */
   async write(path: string, data: ArrayBuffer): Promise<LocalStat> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) {
+      // Vault の索引に載らないので変更イベントも来ない。自分の書き込みとして控える必要は無い。
+      await this.app.vault.adapter.writeBinary(full, data);
+      const stat = await this.app.vault.adapter.stat(full);
+      if (!stat) throw new Error(t.errLocalMissing(full));
+      return { mtime: stat.mtime, size: stat.size };
+    }
     const existing = this.app.vault.getFileByPath(full);
     if (existing) {
       this.beforeWrite(full);
@@ -134,6 +163,11 @@ export class ObsidianLocalStore implements LocalStore {
 
   async delete(path: string): Promise<void> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) {
+      if (!(await this.app.vault.adapter.exists(full))) return;
+      if (!(await this.app.vault.adapter.trashSystem(full))) await this.app.vault.adapter.trashLocal(full);
+      return;
+    }
     const file = this.app.vault.getAbstractFileByPath(full);
     if (!file) return;
     this.beforeWrite(full);

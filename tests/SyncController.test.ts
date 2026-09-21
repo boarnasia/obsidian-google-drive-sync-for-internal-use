@@ -63,9 +63,15 @@ const http: HttpSend = async (method, url, headers, body) => {
     calls.push("changes");
     return reply(JSON.stringify({ changes, newStartPageToken: startToken }), changesStatus);
   }
-  calls.push(url.includes("/files?q=") ? "list" : "drive");
+  calls.push(decodeURIComponent(url).includes(".tds-version") ? "version" : url.includes("/files?q=") ? "list" : "drive");
   return drive.http(method, url, headers, body);
 };
+
+/** Drive 上のノート。版の目印（.tds-version）は除く。 */
+function notes(): Record<string, string> {
+  const { ".tds-version": _version, ...rest } = drive.contents();
+  return rest;
+}
 
 function controller(): SyncController {
   return new SyncController(appWith(vault) as unknown as App, settings, async () => {
@@ -133,7 +139,7 @@ describe("同期の一往復", () => {
     const report = await connected().sync();
 
     expect(report.uploaded.sort()).toEqual(["日報/2026-09-12.md", "顧客/A社.md"]);
-    expect(drive.contents()).toEqual({ "顧客/A社.md": "a", "日報/2026-09-12.md": "b" });
+    expect(notes()).toEqual({ "顧客/A社.md": "a", "日報/2026-09-12.md": "b" });
   });
 
   it("リモートのファイルが Vault に降りる", async () => {
@@ -393,25 +399,22 @@ describe("接続の解除", () => {
   });
 });
 
-describe("Vault 内の設定ファイル", () => {
-  it("clone の後に、無いものだけ作る", async () => {
-    drive.seed("a.md", "x");
-    const c = connected();
-
-    await c.clone();
-
-    expect(vault.contentOf("_Sync/ignore.md")).toContain("Shared ignore rules");
-    expect(vault.contentOf("_Sync/README.md")).toContain("Google Drive Sync");
-    expect(vault.contentOf("_SyncLocal/ignore.md")).toBeDefined();
-  });
-
-  it("すでにある設定ファイルは上書きしない", async () => {
-    vault.seed("_Sync/ignore.md", "# チームの決めごと\n下書き/");
+describe("除外規則のファイル（.tds-ignore）", () => {
+  it("clone の後に、無ければ作る", async () => {
     drive.seed("a.md", "x");
 
     await connected().clone();
 
-    expect(vault.contentOf("_Sync/ignore.md")).toBe("# チームの決めごと\n下書き/");
+    expect(vault.adapter.contentOf(".tds-ignore")).toContain("Shared ignore rules");
+  });
+
+  it("すでにあるものは上書きしない", async () => {
+    vault.adapter.seed(".tds-ignore", "# チームの決めごと\n下書き/");
+    drive.seed("a.md", "x");
+
+    await connected().clone();
+
+    expect(vault.adapter.contentOf(".tds-ignore")).toBe("# チームの決めごと\n下書き/");
   });
 
   it("clone を通らなければ作らない（有効化しただけの Vault を汚さない）", async () => {
@@ -419,7 +422,7 @@ describe("Vault 内の設定ファイル", () => {
 
     await connected().sync();
 
-    expect(vault.contentOf("_Sync/README.md")).toBeUndefined();
+    expect(vault.adapter.contentOf(".tds-ignore")).toBeUndefined();
   });
 
   it("ローカル固有ファイルは未整理として控える", async () => {
@@ -430,39 +433,106 @@ describe("Vault 内の設定ファイル", () => {
 
     expect(settings.unsorted[ROOT]).toEqual(["私のメモ.md"]);
   });
-});
 
-describe("除外規則", () => {
-  it("チームの規則に当たるファイルはアップロードしない", async () => {
-    vault.seed("_Sync/ignore.md", "下書き/");
+  it("規則に当たるファイルはアップロードしない", async () => {
+    vault.adapter.seed(".tds-ignore", "下書き/");
     vault.seed("下書き/秘密.md", "私的");
     vault.seed("議事録.md", "共有");
 
     const report = await connected().sync();
 
     expect(report.uploaded).not.toContain("下書き/秘密.md");
-    expect(Object.keys(drive.contents())).not.toContain("下書き/秘密.md");
+    expect(Object.keys(notes())).not.toContain("下書き/秘密.md");
     // 規則そのものはチームに配る。除外できてしまうと、以後ルールが届かなくなる。
-    expect(report.uploaded).toContain("_Sync/ignore.md");
+    expect(notes()[".tds-ignore"]).toBe("下書き/");
   });
 
-  it("各自の規則も効く", async () => {
-    vault.seed("_SyncLocal/ignore.md", "*.png");
-    vault.seed("図.png", "画像");
+  it("他の人の規則が降りてきて、その同期から効く", async () => {
+    drive.seed(".tds-ignore", "*.png");
     vault.seed("議事録.md", "共有");
+    const c = connected();
 
-    const report = await connected().sync();
+    await c.sync();
+    vault.seed("図.png", "画像");
+    const report = await c.sync();
 
-    expect(report.uploaded).toEqual(["議事録.md"]);
+    expect(vault.adapter.contentOf(".tds-ignore")).toBe("*.png");
+    expect(report.uploaded).not.toContain("図.png");
+  });
+});
+
+describe("版の目印（.tds-version）", () => {
+  const versioned = (version: string): SyncController => {
+    settings.oauthClientId = "cid";
+    settings.driveToken = "rt-1";
+    settings.target = TARGET;
+    return new SyncController(appWith(vault) as unknown as App, settings, async () => undefined, http, version);
+  };
+
+  it("無ければ自分の版で作る", async () => {
+    await versioned("0.6.0").sync();
+
+    expect(drive.contents()[".tds-version"]).toBe("0.6.0\n");
   });
 
-  it("各自の規則ファイルはチームに配らない", async () => {
-    vault.seed("_SyncLocal/ignore.md", "# 自分用");
+  it("自分の方が新しければ、自分の版に上げる", async () => {
+    drive.seed(".tds-version", "0.6.0\n");
+
+    await versioned("0.7.1").sync();
+
+    expect(drive.contents()[".tds-version"]).toBe("0.7.1\n");
+  });
+
+  it("自分の方が古ければ同期を止め、何も上げない", async () => {
+    drive.seed(".tds-version", "0.7.0\n");
     vault.seed("a.md", "x");
+    const c = versioned("0.6.0");
 
-    await connected().sync();
+    await expect(c.sync()).rejects.toThrow(/0\.7\.0/);
 
-    expect(Object.keys(drive.contents())).toEqual(["a.md"]);
+    expect(c.versionGap).toEqual({ mine: "0.6.0", team: "0.7.0" });
+    expect(notes()).toEqual({});
+    expect(drive.contents()[".tds-version"]).toBe("0.7.0\n");
+  });
+
+  it("clone も止める", async () => {
+    drive.seed(".tds-version", "1.0.0");
+    drive.seed("a.md", "x");
+
+    await expect(versioned("0.9.9").clone()).rejects.toThrow();
+
+    expect(vault.contentOf("a.md")).toBeUndefined();
+  });
+
+  it("数えるだけの plan() は目印を書かないが、古ければ知らせる", async () => {
+    const c = versioned("0.6.0");
+    await c.plan();
+    expect(drive.contents()[".tds-version"]).toBeUndefined();
+
+    drive.seed(".tds-version", "0.7.0");
+    await expect(c.plan()).rejects.toThrow();
+    expect(c.versionGap).not.toBeNull();
+  });
+
+  it("更新して版が揃えば、案内は消える", async () => {
+    drive.seed(".tds-version", "0.7.0");
+    const old = versioned("0.6.0");
+    await old.sync().catch(() => undefined);
+    expect(old.versionGap).not.toBeNull();
+
+    const updated = versioned("0.7.0");
+    await updated.sync();
+
+    expect(updated.versionGap).toBeNull();
+  });
+
+  it("目印は Vault に降りてこない", async () => {
+    drive.seed(".tds-version", "0.6.0");
+
+    await versioned("0.6.0").sync();
+
+    expect(vault.adapter.contentOf(".tds-version")).toBeUndefined();
+    expect(vault.contentOf(".tds-version")).toBeUndefined();
   });
 });
 
@@ -478,7 +548,7 @@ describe("ローカル固有ファイルの分類", () => {
     const report = await connected().shareLocalFiles(["私のメモ.md"]);
 
     expect(report.uploaded).toContain("私のメモ.md");
-    expect(drive.contents()).toHaveProperty("私のメモ.md", "私的");
+    expect(notes()).toHaveProperty("私のメモ.md", "私的");
     expect(settings.unsorted[ROOT]).toEqual([]);
   });
 
@@ -490,7 +560,7 @@ describe("ローカル固有ファイルの分類", () => {
 
     expect(result.trashed).toEqual(["いらない.md"]);
     expect(vault.contentOf("いらない.md")).toBeUndefined();
-    expect(Object.keys(drive.contents())).toEqual([]);
+    expect(Object.keys(notes())).toEqual([]);
     expect(settings.unsorted[ROOT]).toEqual([]);
   });
 
@@ -502,7 +572,7 @@ describe("ローカル固有ファイルの分類", () => {
 
     expect(report.heldUploads).toContain("迷い中.md");
     expect(vault.contentOf("迷い中.md")).toBe("未定");
-    expect(Object.keys(drive.contents())).toEqual([]);
+    expect(Object.keys(notes())).toEqual([]);
     expect(settings.unsorted[ROOT]).toEqual(["迷い中.md"]);
   });
 
@@ -514,7 +584,7 @@ describe("ローカル固有ファイルの分類", () => {
     const report = await connected().sync();
 
     expect(report.heldUploads).toContain("迷い中.md");
-    expect(Object.keys(drive.contents())).toContain("これも新しい.md");
+    expect(Object.keys(notes())).toContain("これも新しい.md");
   });
 
   it("消えたファイルの保留は、次の同期で落ちる", async () => {

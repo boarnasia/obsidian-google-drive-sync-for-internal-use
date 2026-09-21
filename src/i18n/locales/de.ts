@@ -120,10 +120,27 @@ export const de: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone fertig — ↓${down}, ${conflicts} Konfliktkopie(n), ${localOnly} nur lokale Datei(en)`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Konfigurationsdateien",
+  panelIgnoreDesc:
+    "Die Ausschlussregeln des Teams stehen in .tds-ignore oben im synchronisierten Ordner. Obsidian zeigt Dateien mit führendem Punkt nicht an, öffne sie daher in einem Texteditor.",
+  btnOpenFile: "Öffnen",
+  tipOpenFile: "Im Texteditor öffnen",
+  btnCopyPath: "Pfad kopieren",
+  tipCopyPath: "Vollständigen Pfad in die Zwischenablage kopieren",
+  pathCopied: (p) => `kopiert: ${p}`,
+  errOpenFailed: (m) => `Datei konnte nicht geöffnet werden: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `Dieses Plugin ist veraltet (deins ${mine}, Team ${team}). Die Synchronisierung pausiert bis zum Update.`,
+  panelVersionBehindDesc: "Aktualisiere das Plugin mit BRAT. Sobald die Versionen übereinstimmen, geht die Synchronisierung weiter.",
+  btnUpdateViaBrat: "Mit BRAT aktualisieren",
+  tipUpdateViaBrat: "BRAT-Befehl zum Suchen und Installieren von Updates ausführen",
+  errVersionBehind: (mine, team) =>
+    `dieses Plugin (${mine}) ist älter als das des Teams (${team}); zum Synchronisieren aktualisieren`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Deine eigenen Ausschlussregeln",
-  localIgnoreBody:
-    "Die Regeln hier gelten nur für deinen Tresor; diese Datei wird nie synchronisiert. Gleiche Syntax wie _Sync/ignore.md: # ist ein Kommentar, * ? ** sind Platzhalter, ein führender / bindet an die Synchronisierungswurzel, ein abschließender / trifft Ordner, ! hebt einen Ausschluss auf, aber nie für eine Datei in einem ausgeschlossenen Ordner.",
   panelUnsorted: (n) => `Noch nicht entschieden (${n})`,
   panelLocalOnlyDesc: "Drive hat diese Dateien nicht. Jede bleibt hier und wird nicht hochgeladen, bis du entscheidest.",
   btnShare: "Teilen",

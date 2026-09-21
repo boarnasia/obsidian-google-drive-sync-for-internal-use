@@ -120,10 +120,27 @@ export const es: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminado — ↓${down}, ${conflicts} copia(s) de conflicto, ${localOnly} archivo(s) solo local`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Archivos de configuración",
+  panelIgnoreDesc:
+    "Las reglas de exclusión del equipo están en .tds-ignore, en la raíz de la carpeta sincronizada. Obsidian no muestra los archivos que empiezan por punto, así que ábrelo con un editor de texto.",
+  btnOpenFile: "Abrir",
+  tipOpenFile: "Abrir en tu editor de texto",
+  btnCopyPath: "Copiar ruta",
+  tipCopyPath: "Copiar la ruta completa al portapapeles",
+  pathCopied: (p) => `copiado: ${p}`,
+  errOpenFailed: (m) => `no se pudo abrir el archivo: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `Este plugin está desactualizado (el tuyo ${mine}, el del equipo ${team}). La sincronización está en pausa hasta que lo actualices.`,
+  panelVersionBehindDesc: "Actualiza el plugin con BRAT. La sincronización se reanuda en cuanto coincidan las versiones.",
+  btnUpdateViaBrat: "Actualizar con BRAT",
+  tipUpdateViaBrat: "Ejecutar el comando de BRAT para buscar actualizaciones y actualizar",
+  errVersionBehind: (mine, team) =>
+    `este plugin (${mine}) es más antiguo que el del equipo (${team}); actualízalo para sincronizar`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Tus propias reglas de exclusión",
-  localIgnoreBody:
-    "Las reglas de aquí solo afectan a tu bóveda; este archivo nunca se sincroniza. Misma sintaxis que _Sync/ignore.md: # es comentario, * ? ** son comodines, una / inicial ancla a la raíz de sincronización, una / final coincide con carpetas y ! deshace una exclusión, pero nunca la de un archivo dentro de una carpeta excluida.",
   panelUnsorted: (n) => `Sin decidir (${n})`,
   panelLocalOnlyDesc: "Drive no tiene estos archivos. Cada uno se queda aquí, sin subir, hasta que decidas.",
   btnShare: "Compartir",

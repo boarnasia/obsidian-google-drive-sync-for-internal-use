@@ -12,14 +12,8 @@ import { requestUrlHttp } from "./obsidian/requestUrlHttp";
 import { withRetry } from "./util/retry";
 import { DriveTarget, Settings } from "./settings";
 import { ignoreMatcher } from "./sync/ignore";
-import {
-  LOCAL_IGNORE_PATH,
-  TEAM_IGNORE_PATH,
-  TEAM_IGNORE_TEMPLATE,
-  TEAM_README_PATH,
-  TEAM_README_TEMPLATE,
-  localIgnoreTemplate,
-} from "./sync/configFiles";
+import { TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE, VERSION_PATH } from "./sync/configFiles";
+import { compareVersions } from "./util/version";
 import { t } from "./i18n";
 
 /**
@@ -31,6 +25,12 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
 async function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
   await local.write(path, new TextEncoder().encode(body).buffer);
+}
+
+/** 自分の版がチームの版より古い。揃うまで同期しない（ADR-0007）。 */
+export interface VersionGap {
+  mine: string;
+  team: string;
 }
 
 /**
@@ -66,12 +66,18 @@ export class SyncController {
    * その走査でまた分かる。
    */
   private readonly insideIds = new Map<string, Set<string>>();
+  /** 直近に Drive の `.tds-version` を読んだ結果。古ければサイドバーが更新を案内する。 */
+  versionGap: VersionGap | null = null;
 
+  /**
+   * @param version このプラグインの版（manifest の version）。
+   */
   constructor(
     private readonly app: App,
     private readonly settings: Settings,
     private readonly persist: () => Promise<void>,
-    http?: HttpSend
+    http?: HttpSend,
+    private readonly version = "0.0.0"
   ) {
     this.http = http ?? withRetry(requestUrlHttp);
   }
@@ -207,12 +213,13 @@ export class SyncController {
 
   private async syncNow(opts: { approvedDeletes?: ReadonlySet<string> }): Promise<SyncReport> {
     const target = this.requireTarget();
+    const remote = this.remoteFor(target);
+    await this.checkVersion(remote, { write: true });
 
     // 起点は走査の *前* に取る。後から取ると、走査中に入った変更を見落とす。
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const remote = this.remoteFor(target);
     const { state, report } = await (await this.engineFor(target, remote)).sync(this.settings.syncState[key] ?? {}, opts);
     this.insideIds.set(key, remote.insideIds());
     this.lastBlocked = report.blocked.length > 0;
@@ -235,31 +242,51 @@ export class SyncController {
 
   private async cloneNow(): Promise<SyncReport> {
     const target = this.requireTarget();
+    const remote = this.remoteFor(target);
+    await this.checkVersion(remote, { write: true });
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const remote = this.remoteFor(target);
     const { state, report } = await (await this.engineFor(target, remote)).clone(this.settings.syncState[key] ?? {});
     this.insideIds.set(key, remote.insideIds());
     this.lastBlocked = false;
     // 取り込みは両側を数え直すので、未整理も持ち越さずに作り直す。
     this.settings.unsorted[key] = [...report.localOnly];
     await this.commit(key, state, freshToken);
-    // 設定ファイルは clone の後に、無いものだけ作る。前に作ると、自分で作ったファイルが
+    // 除外規則は clone の後に、無ければ作る。前に作ると、自分で作ったファイルが
     // 自分のローカル固有ファイルとして並ぶ。
-    await this.ensureConfigFiles(this.store());
+    await this.ensureIgnoreFile();
     return report;
   }
 
-  private async ensureConfigFiles(local: ObsidianLocalStore): Promise<void> {
-    const files: [string, string][] = [
-      [TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE],
-      [TEAM_README_PATH, TEAM_README_TEMPLATE],
-      [LOCAL_IGNORE_PATH, localIgnoreTemplate({ title: t.localIgnoreTitle, body: t.localIgnoreBody })],
-    ];
-    for (const [path, body] of files) {
-      if ((await local.readText(path)) === null) await writeText(local, path, body);
+  /** `.tds-ignore` が無ければ雛形で作る。サイドバーの「開く」からも呼ぶ。 */
+  async ensureIgnoreFile(): Promise<void> {
+    const local = this.store();
+    if ((await local.readText(TEAM_IGNORE_PATH)) === null) await writeText(local, TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE);
+  }
+
+  // ------------------------------------------------------------ 版の目印
+
+  /**
+   * Drive の `.tds-version` と自分の版を突き合わせる（ADR-0007）。
+   *
+   * 自分の方が古ければ止める。同期の規則は版ごとに変わりうるので、古い版と新しい版が
+   * 同じフォルダに書き込むと、同じファイルの二重作成や消したはずのファイルの復活が
+   * 起きうる。新しければ目印を自分の版に上げ、以後それより古い版を止める。
+   *
+   * @param opts.write 目印を作る・上げるか。数えるだけの plan() では書かない。
+   */
+  private async checkVersion(remote: DriveProvider, opts: { write: boolean }): Promise<void> {
+    const data = await remote.get(VERSION_PATH);
+    const team = data ? new TextDecoder().decode(data).trim() : null;
+    const order = team === null ? null : compareVersions(this.version, team);
+    if (order !== null && order < 0 && team !== null) {
+      this.versionGap = { mine: this.version, team };
+      throw new Error(t.errVersionBehind(this.version, team));
     }
+    this.versionGap = null;
+    // 読めない目印は、無いものとして自分の版で書き直す。
+    if (opts.write && order !== 0) await remote.put(VERSION_PATH, new TextEncoder().encode(`${this.version}\n`).buffer, "text/plain");
   }
 
   // -------------------------------------------------- ローカル固有ファイルの分類
@@ -318,7 +345,9 @@ export class SyncController {
   /** 適用せずに、今の同期が何をするかを数える。サイドバーの表示に使う。 */
   async plan(): Promise<SyncPlan> {
     const target = this.requireTarget();
-    return (await this.engineFor(target)).plan(this.settings.syncState[target.folderId] ?? {});
+    const remote = this.remoteFor(target);
+    await this.checkVersion(remote, { write: false });
+    return (await this.engineFor(target, remote)).plan(this.settings.syncState[target.folderId] ?? {});
   }
 
   private async hasLocalChanges(target: DriveTarget): Promise<boolean> {
@@ -335,7 +364,7 @@ export class SyncController {
 
   private async engineFor(target: DriveTarget, remote: DriveProvider = this.remoteFor(target)): Promise<SyncEngine> {
     const local = this.store();
-    const [team, mine] = await Promise.all([local.readText(TEAM_IGNORE_PATH), local.readText(LOCAL_IGNORE_PATH)]);
+    const team = await local.readText(TEAM_IGNORE_PATH);
     // 未整理のものだけを止める。分類し終えたファイルは、もうこの集合に居ない。
     const held = new Set(this.unsortedOf(target.folderId));
     return new SyncEngine(
@@ -344,7 +373,7 @@ export class SyncController {
       () => new Date(),
       undefined,
       undefined,
-      ignoreMatcher(team, mine),
+      ignoreMatcher(team),
       held
     );
   }

@@ -3,9 +3,20 @@ import type GoogleDriveSyncPlugin from "../main";
 import { BlockReason, SyncPlan } from "../sync/types";
 import { relativeTime } from "../util/time";
 import { ConfirmModal } from "./ConfirmModal";
+import { fullPathOf, openInTextEditor } from "./openExternal";
+import { TEAM_IGNORE_PATH } from "../sync/configFiles";
 import { t } from "../i18n";
 
 export const SYNC_PANEL_VIEW = "google-drive-sync-panel";
+
+/** BRAT の「更新を確認して更新」。BRAT の自動更新は起動時だけなので、開いたままの人はここで追いつく。 */
+const BRAT_UPDATE_COMMAND = "obsidian42-brat:checkForUpdatesAndUpdate";
+
+/** 公開 API に無い、コマンドの実行とプラグインの有効状態。 */
+interface AppInternals {
+  commands?: { executeCommandById(id: string): boolean };
+  plugins?: { enabledPlugins?: Set<string> };
+}
 
 /**
  * 同期管理のサイドバー。
@@ -92,10 +103,62 @@ export class SyncPanelView extends ItemView {
       this.renderUnsorted(root, this.plan);
       this.renderCounts(root, this.plan);
     }
+    this.renderConfigFiles(root);
+  }
+
+  /**
+   * 版が古い。同期は止まっているので、止まっている理由と更新の手段だけを出す
+   * （ADR-0007）。
+   */
+  private renderVersionGap(box: HTMLElement): boolean {
+    const gap = this.plugin.controller.versionGap;
+    if (!gap) return false;
+    box.createDiv({ cls: "gds-panel-blocked", text: t.panelVersionBehind(gap.mine, gap.team) });
+    box.createDiv({ cls: "gds-panel-note", text: t.panelVersionBehindDesc });
+    const app = this.app as unknown as AppInternals;
+    const brat = app.plugins?.enabledPlugins?.has("obsidian42-brat") ?? false;
+    if (brat) {
+      const row = box.createDiv({ cls: "gds-panel-actions" });
+      this.action(row, t.btnUpdateViaBrat, t.tipUpdateViaBrat, true, () => {
+        app.commands?.executeCommandById(BRAT_UPDATE_COMMAND);
+      }).setCta();
+    }
+    return true;
+  }
+
+  /** `.tds-ignore` はドットで始まり Obsidian に表示されないので、ここから開く（ADR-0007）。 */
+  private renderConfigFiles(root: HTMLElement): void {
+    root.createEl("h4", { text: t.panelConfigFiles });
+    root.createDiv({ cls: "gds-panel-note", text: t.panelIgnoreDesc });
+    const row = root.createDiv({ cls: "gds-panel-row" });
+    row.createSpan({ text: TEAM_IGNORE_PATH, cls: "gds-panel-path" });
+    const buttons = row.createDiv({ cls: "gds-panel-rowactions" });
+    this.action(buttons, t.btnOpenFile, t.tipOpenFile, true, () => void this.openIgnoreFile());
+    this.action(buttons, t.btnCopyPath, t.tipCopyPath, true, () => void this.copyIgnorePath());
+  }
+
+  private async openIgnoreFile(): Promise<void> {
+    const full = fullPathOf(this.app, TEAM_IGNORE_PATH);
+    if (!full) return;
+    try {
+      // clone 前でも規則は書ける。無ければ雛形を置いてから開く。
+      await this.plugin.controller.ensureIgnoreFile();
+      await openInTextEditor(full);
+    } catch (e) {
+      new Notice(t.notice(t.errOpenFailed(e instanceof Error ? e.message : String(e))));
+    }
+  }
+
+  private async copyIgnorePath(): Promise<void> {
+    const full = fullPathOf(this.app, TEAM_IGNORE_PATH);
+    if (!full) return;
+    await navigator.clipboard.writeText(full);
+    new Notice(t.notice(t.pathCopied(full)));
   }
 
   private renderStatus(root: HTMLElement): void {
     const box = root.createDiv({ cls: "gds-panel-status" });
+    if (this.renderVersionGap(box)) return;
     if (this.error) {
       box.createDiv({ cls: "gds-panel-blocked", text: `✗ ${this.error}` });
       return;
@@ -133,12 +196,12 @@ export class SyncPanelView extends ItemView {
    * 狭いときに横一列を押し通すと、端のボタンが読めないまま切れる。
    */
   private renderActions(root: HTMLElement): void {
-    const canSync = !!this.plan && this.plan.blocked.length === 0;
+    const canSync = !!this.plan && this.plan.blocked.length === 0 && !this.plugin.controller.versionGap;
     root.createEl("h4", { text: t.panelActions });
 
     const row = root.createDiv({ cls: "gds-panel-actions" });
     this.action(row, t.syncNowName, t.tipSyncNow, canSync && !this.busy, () => this.runSync()).setCta();
-    this.action(row, t.btnClone, t.tipClone, !this.busy, () => this.runClone());
+    this.action(row, t.btnClone, t.tipClone, !this.busy && !this.plugin.controller.versionGap, () => this.runClone());
     this.action(row, t.btnRefresh, t.tipRefresh, !this.busy, () => void this.refresh());
 
     this.renderSyncSettings(root);

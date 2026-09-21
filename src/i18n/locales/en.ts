@@ -121,10 +121,27 @@ export const en = {
   cloneDone: (down: number, conflicts: number, localOnly: number): string =>
     `clone done — ↓${down}, ${conflicts} conflict copy/copies, ${localOnly} local-only file(s)`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Config files",
+  panelIgnoreDesc:
+    "The team's ignore rules live in .tds-ignore at the top of the synced folder. Obsidian does not list dot files, so open it in a text editor.",
+  btnOpenFile: "Open",
+  tipOpenFile: "Open in your text editor",
+  btnCopyPath: "Copy path",
+  tipCopyPath: "Copy the full path to the clipboard",
+  pathCopied: (p: string): string => `copied: ${p}`,
+  errOpenFailed: (m: string): string => `could not open the file: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine: string, team: string): string =>
+    `This plugin is out of date (yours ${mine}, team ${team}). Sync is paused until you update.`,
+  panelVersionBehindDesc: "Update the plugin with BRAT. Sync resumes as soon as the versions match.",
+  btnUpdateViaBrat: "Update with BRAT",
+  tipUpdateViaBrat: "Run BRAT's check-for-updates-and-update command",
+  errVersionBehind: (mine: string, team: string): string =>
+    `this plugin (${mine}) is older than the team's (${team}); update it to sync`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Your own ignore rules",
-  localIgnoreBody:
-    "Rules here apply only to your own vault; this file is never synced. Same syntax as _Sync/ignore.md: # is a comment, * ? ** are globs, a leading / anchors to the sync root, a trailing / matches folders, ! un-ignores, but never a file inside an ignored folder.",
   panelUnsorted: (n: number): string => `Not decided yet (${n})`,
   panelLocalOnlyDesc: "Drive does not have these files. Each one stays here, unsent, until you decide.",
   btnShare: "Share",

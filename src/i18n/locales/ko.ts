@@ -119,10 +119,27 @@ export const ko: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "설정 파일",
+  panelIgnoreDesc:
+    "팀의 제외 규칙은 동기화 폴더 최상위의 .tds-ignore에 있습니다. Obsidian은 점으로 시작하는 파일을 표시하지 않으므로 텍스트 편집기로 여세요.",
+  btnOpenFile: "열기",
+  tipOpenFile: "텍스트 편집기로 열기",
+  btnCopyPath: "경로 복사",
+  tipCopyPath: "전체 경로를 클립보드에 복사",
+  pathCopied: (p) => `복사됨: ${p}`,
+  errOpenFailed: (m) => `파일을 열 수 없습니다: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `이 플러그인 버전이 오래되었습니다(내 버전 ${mine}, 팀 ${team}). 업데이트할 때까지 동기화를 멈춥니다.`,
+  panelVersionBehindDesc: "BRAT로 플러그인을 업데이트하세요. 버전이 맞으면 동기화가 다시 시작됩니다.",
+  btnUpdateViaBrat: "BRAT로 업데이트",
+  tipUpdateViaBrat: "BRAT의 '업데이트 확인 후 업데이트' 명령 실행",
+  errVersionBehind: (mine, team) =>
+    `이 플러그인(${mine})이 팀 버전(${team})보다 오래되어 동기화할 수 없습니다. 업데이트하세요`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "나만의 제외 규칙",
-  localIgnoreBody:
-    "여기에 쓴 규칙은 내 보관소에만 적용되며, 이 파일은 동기화되지 않습니다. 문법은 _Sync/ignore.md와 같습니다. #은 주석, * ? **는 글롭, 앞의 /는 동기화 루트 고정, 뒤의 /는 폴더, !는 해제입니다. 단, 제외된 폴더 안의 파일은 해제할 수 없습니다.",
   panelUnsorted: (n) => `아직 결정하지 않음 (${n}건)`,
   panelLocalOnlyDesc: "Drive에 없는 파일입니다. 결정할 때까지 여기에 남고, 올라가지 않습니다.",
   btnShare: "공유",

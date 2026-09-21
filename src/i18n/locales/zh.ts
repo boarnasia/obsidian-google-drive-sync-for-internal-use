@@ -112,10 +112,27 @@ export const zh: Strings = {
   panelMore: (n) => `…还有 ${n} 项`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，冲突副本 ${conflicts} 个，仅本地 ${localOnly} 个`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "配置文件",
+  panelIgnoreDesc:
+    "团队的忽略规则位于同步文件夹顶层的 .tds-ignore。Obsidian 不列出以点开头的文件，请用文本编辑器打开。",
+  btnOpenFile: "打开",
+  tipOpenFile: "用文本编辑器打开",
+  btnCopyPath: "复制路径",
+  tipCopyPath: "将完整路径复制到剪贴板",
+  pathCopied: (p) => `已复制：${p}`,
+  errOpenFailed: (m) => `无法打开文件：${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `此插件版本过旧（你的 ${mine}，团队 ${team}）。更新前同步已暂停。`,
+  panelVersionBehindDesc: "请通过 BRAT 更新插件。版本一致后同步将恢复。",
+  btnUpdateViaBrat: "用 BRAT 更新",
+  tipUpdateViaBrat: "运行 BRAT 的“检查更新并更新”命令",
+  errVersionBehind: (mine, team) =>
+    `此插件（${mine}）比团队版本（${team}）旧，请更新后再同步`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "仅自己的忽略规则",
-  localIgnoreBody:
-    "这里的规则只对你自己的仓库生效，本文件不会被同步。语法与 _Sync/ignore.md 相同：# 是注释，* ? ** 是通配符，开头的 / 固定到同步根目录，结尾的 / 匹配文件夹，! 取消忽略，但无法取消已忽略文件夹内的文件。",
   panelUnsorted: (n) => `尚未决定（${n} 项）`,
   panelLocalOnlyDesc: "Drive 没有这些文件。在你决定之前，它们留在本地，不会上传。",
   btnShare: "共享",

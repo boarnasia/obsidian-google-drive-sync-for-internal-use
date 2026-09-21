@@ -41,7 +41,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     // Obsidian が確定させ、以後読み直さない。
     setLanguage(this.settings.language, getLanguage());
 
-    this.controller = new SyncController(this.app, this.settings, () => this.saveData(this.settings));
+    this.controller = new SyncController(this.app, this.settings, () => this.saveData(this.settings), undefined, this.manifest.version);
 
     this.registerView(SYNC_PANEL_VIEW, (leaf) => new SyncPanelView(leaf, this));
     // 同期の操作はすべてこの画面にあるので、最初から右サイドバーに出しておく。

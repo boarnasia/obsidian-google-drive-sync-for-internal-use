@@ -120,10 +120,27 @@ export const fr: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminé — ↓${down}, ${conflicts} copie(s) de conflit, ${localOnly} fichier(s) local uniquement`,
 
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Fichiers de configuration",
+  panelIgnoreDesc:
+    "Les règles d’exclusion de l’équipe sont dans .tds-ignore, à la racine du dossier synchronisé. Obsidian n’affiche pas les fichiers commençant par un point : ouvrez-le dans un éditeur de texte.",
+  btnOpenFile: "Ouvrir",
+  tipOpenFile: "Ouvrir dans votre éditeur de texte",
+  btnCopyPath: "Copier le chemin",
+  tipCopyPath: "Copier le chemin complet dans le presse-papiers",
+  pathCopied: (p) => `copié : ${p}`,
+  errOpenFailed: (m) => `impossible d’ouvrir le fichier : ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `Ce plugin n’est pas à jour (le vôtre ${mine}, celui de l’équipe ${team}). La synchronisation est suspendue jusqu’à la mise à jour.`,
+  panelVersionBehindDesc: "Mettez le plugin à jour avec BRAT. La synchronisation reprend dès que les versions concordent.",
+  btnUpdateViaBrat: "Mettre à jour avec BRAT",
+  tipUpdateViaBrat: "Lancer la commande BRAT de recherche et d’installation des mises à jour",
+  errVersionBehind: (mine, team) =>
+    `ce plugin (${mine}) est plus ancien que celui de l’équipe (${team}) ; mettez-le à jour pour synchroniser`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Vos propres règles d’exclusion",
-  localIgnoreBody:
-    "Les règles écrites ici ne valent que pour votre coffre ; ce fichier n’est jamais synchronisé. Même syntaxe que _Sync/ignore.md : # pour un commentaire, * ? ** comme jokers, un / initial ancre à la racine de synchronisation, un / final vise les dossiers, ! annule une exclusion, mais jamais pour un fichier situé dans un dossier exclu.",
   panelUnsorted: (n) => `Pas encore décidé (${n})`,
   panelLocalOnlyDesc: "Drive n’a pas ces fichiers. Chacun reste ici, non envoyé, tant que vous n’avez pas décidé.",
   btnShare: "Partager",

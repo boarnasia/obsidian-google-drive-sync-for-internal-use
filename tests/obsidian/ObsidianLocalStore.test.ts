@@ -222,3 +222,54 @@ describe("一覧の読み方", () => {
     expect((await store().list()).map((f) => f.path)).toEqual(["a.md", "b.md", "c.md"]);
   });
 });
+
+/*
+ * `.tds-ignore` はドットで始まり Vault の索引に載らないので、アダプタ経由で扱う
+ * （ADR-0007）。載らないまま Vault API で扱うと、一覧に出ず同期されない。
+ */
+describe(".tds-ignore（アダプタ経由）", () => {
+  it("一覧に出る", async () => {
+    v.seed("a.md", "x");
+    v.adapter.seed(".tds-ignore", "下書き/");
+
+    expect(await pathsOf()).toEqual([".tds-ignore", "a.md"]);
+  });
+
+  it("姿が変わっていなければ読み直さない", async () => {
+    v.adapter.seed(".tds-ignore", "下書き/", 7);
+    const known = new Map([[".tds-ignore", { hash: "cached", mtime: 7, size: enc("下書き/").byteLength }]]);
+
+    const [f] = await store().list(known);
+
+    expect(f.hash).toBe("cached");
+  });
+
+  it("読み書きできる", async () => {
+    const stat = await store().write(".tds-ignore", enc("*.png"));
+
+    expect(v.adapter.contentOf(".tds-ignore")).toBe("*.png");
+    expect(stat.size).toBe(5);
+    expect(await store().readText(".tds-ignore")).toBe("*.png");
+    expect(new TextDecoder().decode(await store().read(".tds-ignore"))).toBe("*.png");
+    expect(v.getFileByPath(".tds-ignore")).toBeNull();
+  });
+
+  it("無ければ readText は null", async () => {
+    expect(await store().readText(".tds-ignore")).toBeNull();
+  });
+
+  it("削除はゴミ箱へ送る", async () => {
+    v.adapter.seed(".tds-ignore", "x");
+
+    await store().delete(".tds-ignore");
+
+    expect(v.adapter.trashed).toEqual([{ path: ".tds-ignore", system: true }]);
+    expect(v.adapter.contentOf(".tds-ignore")).toBeUndefined();
+  });
+
+  it("他のドットファイルは今までどおり扱わない", async () => {
+    v.adapter.seed(".gitignore", "x");
+
+    expect(await pathsOf()).toEqual([]);
+  });
+});
