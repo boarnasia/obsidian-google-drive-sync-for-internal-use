@@ -129,11 +129,10 @@ describe("初期投入されるファイル", () => {
   });
 
   it("チームのテンプレートは、書いてある規則だけを持つ", () => {
-    expect(parseIgnore(TEAM_IGNORE_TEMPLATE)).toHaveLength(2);
+    expect(parseIgnore(TEAM_IGNORE_TEMPLATE)).toHaveLength(1);
 
     const ignored = match(TEAM_IGNORE_TEMPLATE);
     expect(ignored("Drafts/案.md")).toBe(true);
-    expect(ignored("作業.tmp")).toBe(true);
     expect(ignored("議事録.md")).toBe(false);
   });
 
@@ -148,7 +147,7 @@ describe("初期投入されるファイル", () => {
         .filter((line) => line.trim() !== "")
         .filter((line) => !line.startsWith("#"));
 
-    expect(prose(TEAM_IGNORE_TEMPLATE)).toEqual(["Drafts/", "*.tmp"]);
+    expect(prose(TEAM_IGNORE_TEMPLATE)).toEqual(["Drafts/"]);
     expect(prose(LOCAL)).toEqual([]);
   });
 
