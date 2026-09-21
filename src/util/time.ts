@@ -1,5 +1,6 @@
 /**
- * Human "x ago" rendering for the last-synced info shown in settings.
+ * Human "x ago" rendering for the "last synced" and "checked at" lines in the
+ * sync panel.
  * PURE display helper — never used in any sync / delete decision (correctness
  * comes from the three-way-merge baseline, not from wall-clock time).
  */
@@ -26,9 +27,10 @@ const EN: RelativeTimeWords = {
 export function relativeTime(then: number, now: number, w: RelativeTimeWords = EN): string {
   const s = Math.max(0, Math.round((now - then) / 1000));
   if (s < 45) return w.justNow;
+  // 各単位は秒から直接丸める。丸めた分をさらに丸めると、1 時間 29 分 30 秒が 2 時間になる。
   const m = Math.round(s / 60);
   if (m < 60) return w.minutes(m);
-  const h = Math.round(m / 60);
+  const h = Math.round(s / 3600);
   if (h < 24) return w.hours(h);
-  return w.days(Math.round(h / 24));
+  return w.days(Math.round(s / 86400));
 }
