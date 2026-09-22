@@ -10,7 +10,8 @@ import {
 } from "obsidian";
 import { DEFAULT_SETTINGS, DriveTarget, Settings } from "./settings";
 import { SyncController } from "./SyncController";
-import { SyncReport } from "./sync/types";
+import { CloneProgress, SyncReport } from "./sync/types";
+import { RateEstimator, percentOf } from "./util/progress";
 import { SYNC_PANEL_VIEW, SyncPanelView } from "./obsidian/SyncPanelView";
 import { parseFolderId } from "./providers/drive/DriveTarget";
 import { LANGUAGE_NAMES, isLang, setLanguage, t } from "./i18n";
@@ -35,6 +36,15 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   /** 直近の問い合わせの失敗。設定画面に出す。 */
   targetError: string | null = null;
 
+  /** 取り込みの進み具合。取り込み中だけ値がある。 */
+  cloneProgress: CloneProgress | null = null;
+  private cloneAbort: AbortController | null = null;
+  private cloneRate = new RateEstimator();
+  private readonly progressListeners = new Set<() => void>();
+  /** 画面の更新を間引くためのタイマー。進み具合はファイル 1 件ごとに届く。 */
+  private progressTimer: number | null = null;
+  private statusBarEl: HTMLElement | null = null;
+
   async onload(): Promise<void> {
     await this.loadSettings();
     // 利用者に見えるものを登録する前に。コマンド名とリボンの名称は登録時に
@@ -51,6 +61,12 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     this.addCommand({ id: "open-sync-panel", name: t.panelOpen, callback: () => void this.openPanel() });
     this.addCommand({ id: "sync-now", name: t.cmdSyncNow, callback: () => void this.runSync() });
     this.addSettingTab(new SettingTab(this.app, this));
+
+    // 取り込みの間だけ出す。サイドバーを閉じていても進み具合が分かるように。
+    this.statusBarEl = this.addStatusBarItem();
+    this.statusBarEl.addClass("gds-statusbar", "mod-clickable");
+    this.statusBarEl.hide();
+    this.statusBarEl.addEventListener("click", () => void this.openPanel());
 
     // `on` はイベント名ごとにオーバーロードされているため、まとめて回せない。
     this.registerEvent(this.app.vault.on("modify", (file) => this.noteChange(file.path)));
@@ -70,6 +86,8 @@ export default class GoogleDriveSyncPlugin extends Plugin {
 
   onunload(): void {
     this.stopPolling();
+    this.cancelClone();
+    if (this.progressTimer !== null) window.clearTimeout(this.progressTimer);
   }
 
   /**
@@ -135,6 +153,86 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     3000,
     false
   );
+
+  // ---------------------------------------------------------------- 取り込み
+
+  /** 取り込みが走っているか。 */
+  get cloning(): boolean {
+    return this.cloneAbort !== null;
+  }
+
+  /**
+   * Drive から取り込む。進み具合はサイドバーとステータスバーに出す。
+   * 中止されたら、中止を知らせるエラーで終わる。
+   */
+  async runClone(): Promise<SyncReport> {
+    this.cloneAbort = new AbortController();
+    this.cloneRate = new RateEstimator();
+    this.cloneProgress = { phase: "scan", remoteFound: 0, localDone: 0, localTotal: 0 };
+    this.emitProgress(true);
+    try {
+      return await this.controller.clone({
+        signal: this.cloneAbort.signal,
+        onProgress: (p) => {
+          this.cloneProgress = p;
+          if (p.phase === "download") this.cloneRate.add(Date.now(), p.bytesDone);
+          this.emitProgress(p.phase === "finish");
+        },
+      });
+    } finally {
+      this.cloneAbort = null;
+      this.cloneProgress = null;
+      this.emitProgress(true);
+    }
+  }
+
+  cancelClone(): void {
+    this.cloneAbort?.abort();
+  }
+
+  /** 残りのミリ秒。ダウンロード中で、速度が測れたときだけ。 */
+  cloneRemainingMs(): number | null {
+    const p = this.cloneProgress;
+    return p?.phase === "download" ? this.cloneRate.remainingMs(p.bytesTotal) : null;
+  }
+
+  /** 進み具合が変わったら呼ばれる。戻り値で登録を外す。 */
+  onCloneProgress(listener: () => void): () => void {
+    this.progressListeners.add(listener);
+    return () => this.progressListeners.delete(listener);
+  }
+
+  /** 描き直しは 200ms に 1 回まで。始まりと終わりだけは待たずに届ける。 */
+  private emitProgress(now = false): void {
+    if (now) {
+      if (this.progressTimer !== null) window.clearTimeout(this.progressTimer);
+      this.progressTimer = null;
+      this.flushProgress();
+      return;
+    }
+    if (this.progressTimer !== null) return;
+    this.progressTimer = window.setTimeout(() => {
+      this.progressTimer = null;
+      this.flushProgress();
+    }, 200);
+  }
+
+  private flushProgress(): void {
+    this.renderStatusBar();
+    for (const listener of this.progressListeners) listener();
+  }
+
+  private renderStatusBar(): void {
+    const el = this.statusBarEl;
+    if (!el) return;
+    const p = this.cloneProgress;
+    if (!p) {
+      el.hide();
+      return;
+    }
+    el.setText(p.phase === "download" ? t.statusBarClone(percentOf(p)) : t.statusBarScan);
+    el.show();
+  }
 
   // ---------------------------------------------------------------- 同期
 

@@ -58,6 +58,9 @@ export interface RemoteProvider {
   head(path: string): Promise<RemoteObject | null>;
   /** Delete an object (idempotent — missing is success). */
   delete(path: string): Promise<void>;
-  /** List objects under an optional prefix (handles pagination internally). */
-  list(prefix?: string): Promise<RemoteObject[]>;
+  /**
+   * List objects under an optional prefix (handles pagination internally).
+   * `onFound` receives the running count of files found so far; the total is not known up front.
+   */
+  list(prefix?: string, onFound?: (found: number) => void): Promise<RemoteObject[]>;
 }

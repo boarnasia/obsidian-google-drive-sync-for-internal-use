@@ -119,6 +119,22 @@ export const ja: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 完了 — ↓${down}、競合コピー ${conflicts} 件、ローカル固有 ${localOnly} 件`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Drive から取り込み中",
+  progressScan: (n) => `一覧を取得中… Drive ${n} 件`,
+  progressScanLocal: (d, t) => `ローカル確認 ${d} / ${t}`,
+  progressFinishing: "仕上げ中…",
+  progressFiles: (d, t) => `${d} / ${t} 件`,
+  progressRemaining: (x) => `残り約 ${x}`,
+  durationSeconds: (n) => `${n} 秒`,
+  durationMinutes: (n) => `${n} 分`,
+  progressFailed: (n) => `失敗 ${n} 件`,
+  btnCancelClone: "中止",
+  tipCancelClone: "取り込みを止めます。降りたファイルは残り、同期済みとしては記録しません。",
+  cloneAborted: (n) => `取り込みを中止しました。降りたファイル ${n} 件は残ります`,
+  statusBarClone: (p) => `取り込み中 ${p}%`,
+  statusBarScan: "取り込み中…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "設定ファイル",
   panelIgnoreDesc:

@@ -119,6 +119,22 @@ export const ko: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Drive에서 가져오는 중",
+  progressScan: (n) => `파일 목록 확인 중… Drive ${n}개`,
+  progressScanLocal: (d, t) => `로컬 확인 ${d} / ${t}`,
+  progressFinishing: "마무리 중…",
+  progressFiles: (d, t) => `${d} / ${t}개 파일`,
+  progressRemaining: (x) => `약 ${x} 남음`,
+  durationSeconds: (n) => `${n}초`,
+  durationMinutes: (n) => `${n}분`,
+  progressFailed: (n) => `${n}개 실패`,
+  btnCancelClone: "중지",
+  tipCancelClone: "가져오기를 멈춥니다. 이미 받은 파일은 남지만 동기화된 것으로 기록하지 않습니다.",
+  cloneAborted: (n) => `가져오기를 중지했습니다. 이미 받은 파일 ${n}개는 남습니다`,
+  statusBarClone: (p) => `가져오는 중 ${p}%`,
+  statusBarScan: "가져오는 중…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "설정 파일",
   panelIgnoreDesc:

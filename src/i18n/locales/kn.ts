@@ -119,6 +119,22 @@ export const kn: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone ಮುಗಿದಿದೆ — ↓${down}, ${conflicts} ಸಂಘರ್ಷ ಪ್ರತಿಗಳು, ${localOnly} ಸ್ಥಳೀಯ-ಮಾತ್ರ ಫೈಲ್‌ಗಳು`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Drive ನಿಂದ ಆಮದು ಆಗುತ್ತಿದೆ",
+  progressScan: (n) => `ಫೈಲ್‌ಗಳ ಪಟ್ಟಿ ಮಾಡಲಾಗುತ್ತಿದೆ… Drive ನಲ್ಲಿ ${n}`,
+  progressScanLocal: (d, t) => `ಸ್ಥಳೀಯ ಪರಿಶೀಲನೆ ${d} / ${t}`,
+  progressFinishing: "ಮುಗಿಸಲಾಗುತ್ತಿದೆ…",
+  progressFiles: (d, t) => `${d} / ${t} ಫೈಲ್‌ಗಳು`,
+  progressRemaining: (x) => `ಸುಮಾರು ${x} ಉಳಿದಿದೆ`,
+  durationSeconds: (n) => `${n} ಸೆ`,
+  durationMinutes: (n) => `${n} ನಿಮಿ`,
+  progressFailed: (n) => `${n} ವಿಫಲ`,
+  btnCancelClone: "ನಿಲ್ಲಿಸಿ",
+  tipCancelClone: "ಆಮದು ನಿಲ್ಲಿಸಿ. ಈಗಾಗಲೇ ಡೌನ್‌ಲೋಡ್ ಆದ ಫೈಲ್‌ಗಳು ಉಳಿಯುತ್ತವೆ; ಸಿಂಕ್ ಆಗಿದೆ ಎಂದು ದಾಖಲಿಸುವುದಿಲ್ಲ.",
+  cloneAborted: (n) => `ಆಮದು ನಿಲ್ಲಿಸಲಾಗಿದೆ — ಡೌನ್‌ಲೋಡ್ ಆದ ${n} ಫೈಲ್‌ಗಳು ಇಲ್ಲೇ ಉಳಿಯುತ್ತವೆ`,
+  statusBarClone: (p) => `ಆಮದು ${p}%`,
+  statusBarScan: "ಆಮದು ಆಗುತ್ತಿದೆ…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "ಸಂರಚನಾ ಫೈಲ್‌ಗಳು",
   panelIgnoreDesc:

@@ -536,6 +536,57 @@ describe("版の目印（.tds-version）", () => {
   });
 });
 
+describe("取り込みの中止", () => {
+  it("ベースラインを書かず、中止を知らせる", async () => {
+    for (let i = 0; i < 40; i++) drive.seed(`n${i}.md`, String(i));
+    const abort = new AbortController();
+    const c = connected();
+
+    await expect(
+      c.clone({
+        signal: abort.signal,
+        onProgress: (p) => {
+          if (p.phase === "download" && p.done >= 1) abort.abort();
+        },
+      })
+    ).rejects.toThrow();
+
+    expect(settings.syncState[ROOT]).toBeUndefined();
+    // 除外規則は取り込みが済んでから作る。
+    expect(vault.adapter.contentOf(".tds-ignore")).toBeUndefined();
+  });
+
+  it("途中で作った競合コピーは未整理に入れ、勝手に上げない", async () => {
+    for (let i = 0; i < 40; i++) {
+      drive.seed(`n${i}.md`, "Drive の版");
+      vault.seed(`n${i}.md`, "手元の版");
+    }
+    const abort = new AbortController();
+
+    await connected()
+      .clone({
+        signal: abort.signal,
+        onProgress: (p) => {
+          if (p.phase === "download" && p.done >= 1) abort.abort();
+        },
+      })
+      .catch(() => undefined);
+
+    const copies = (settings.unsorted[ROOT] ?? []).filter((path) => path.includes(".conflict-"));
+    expect(copies.length).toBeGreaterThan(0);
+  });
+
+  it("進み具合は最後に仕上げの段階を通る", async () => {
+    drive.seed("a.md", "x");
+    const phases: string[] = [];
+
+    await connected().clone({ onProgress: (p) => phases.push(p.phase) });
+
+    expect(phases).toContain("scan");
+    expect(phases[phases.length - 1]).toBe("finish");
+  });
+});
+
 describe("ローカル固有ファイルの分類", () => {
   const unsorted = (...paths: string[]): void => {
     settings.unsorted[ROOT] = paths;

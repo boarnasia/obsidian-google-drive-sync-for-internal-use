@@ -62,7 +62,7 @@ export class ObsidianLocalStore implements LocalStore {
    * `known` のハッシュをそのまま使う。これが無いと、何も変わっていない同期でも
    * Vault 全体を読み直すことになる。
    */
-  async list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]> {
+  async list(known?: ReadonlyMap<string, LocalStamp>, onHashed?: (done: number, total: number) => void): Promise<LocalFile[]> {
     const out: LocalFile[] = [];
     const toHash: TFile[] = [];
 
@@ -88,10 +88,13 @@ export class ObsidianLocalStore implements LocalStore {
 
     // 読むものだけを、上限を付けて読む。全件を一度に読むと、初回同期で Vault の
     // 中身がまるごと同時にメモリに載る。
+    let hashed = 0;
+    onHashed?.(0, toHash.length);
     await runPool(toHash, HASH_CONCURRENCY, async (f) => {
       const { mtime, size } = f.stat;
       const hash = await sha256Hex(await this.app.vault.readBinary(f));
       out.push({ path: f.path, hash, mtime, size });
+      onHashed?.(++hashed, toHash.length);
     });
     // 読み終わった順ではなくパス順で返す。サイドバーの一覧が更新のたびに並び替わらない。
     return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));

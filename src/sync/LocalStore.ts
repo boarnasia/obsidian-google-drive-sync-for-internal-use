@@ -12,8 +12,10 @@ export interface LocalStore {
    * `known` carries the stamp (hash + mtime + size) of the last time each path was
    * hashed. A file whose mtime and size are unchanged keeps that hash and is not
    * read — otherwise every sync would read the whole vault to learn nothing.
+   *
+   * `onHashed` reports progress over the files that do have to be read.
    */
-  list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]>;
+  list(known?: ReadonlyMap<string, LocalStamp>, onHashed?: (done: number, total: number) => void): Promise<LocalFile[]>;
   read(path: string): Promise<ArrayBuffer>;
   /** Text of a file that may not exist; `null` when it does not. Used for the config files. */
   readText(path: string): Promise<string | null>;

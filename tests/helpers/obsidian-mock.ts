@@ -78,6 +78,8 @@ function makeEl(): Record<string, unknown> {
     removeClass() {},
     addEventListener() {},
     setText() {},
+    show() {},
+    hide() {},
     appendChild() {},
     appendText() {},
     checked: false,
@@ -170,6 +172,7 @@ export class Plugin {
     this.app = app;
     this.manifest = manifest;
   }
+  addStatusBarItem() { return makeEl(); }
   addRibbonIcon(_icon: string, _title: string, cb: unknown) { this._ribbons.push(cb); return makeEl(); }
   addCommand(cmd: { id: string }) { this._commands.push(cmd); return cmd; }
   addSettingTab(tab: { display: () => void }) { this._settingTabs.push(tab); }

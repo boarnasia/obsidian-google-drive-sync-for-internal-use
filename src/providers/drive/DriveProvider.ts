@@ -264,9 +264,9 @@ export class DriveProvider implements RemoteProvider {
     return new Set([this.root(), ...this.seen]);
   }
 
-  async list(prefix = ""): Promise<RemoteObject[]> {
+  async list(prefix = "", onFound?: (found: number) => void): Promise<RemoteObject[]> {
     const out: RemoteObject[] = [];
-    await this.walk(this.root(), "", out);
+    await this.walk(this.root(), "", out, onFound);
     if (!prefix) return out;
     const p = prefix.replace(/\/+$/, "");
     return out.filter((o) => o.path === p || o.path.startsWith(`${p}/`));
@@ -278,7 +278,7 @@ export class DriveProvider implements RemoteProvider {
    * サブフォルダは並列に辿る。フォルダごとに 1 往復なので、順番に待つと
    * フォルダ数がそのまま待ち時間になる。
    */
-  private async walk(folderId: string, prefix: string, out: RemoteObject[]): Promise<void> {
+  private async walk(folderId: string, prefix: string, out: RemoteObject[], onFound?: (found: number) => void): Promise<void> {
     const subfolders: { id: string; path: string }[] = [];
     let pageToken: string | undefined;
     do {
@@ -305,9 +305,10 @@ export class DriveProvider implements RemoteProvider {
           out.push({ path: childPath, version: f.md5Checksum ?? f.modifiedTime ?? "", size: Number(f.size ?? 0), mtime: msOf(f.modifiedTime) });
         }
       }
+      onFound?.(out.length);
       pageToken = data.nextPageToken;
     } while (pageToken);
 
-    await runPool(subfolders, LIST_CONCURRENCY, (sub) => this.walk(sub.id, sub.path, out));
+    await runPool(subfolders, LIST_CONCURRENCY, (sub) => this.walk(sub.id, sub.path, out, onFound));
   }
 }

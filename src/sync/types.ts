@@ -93,3 +93,30 @@ export function emptyReport(): SyncReport {
     localOnly: [],
   };
 }
+
+/**
+ * clone の進み具合。長い処理が止まって見えないよう、サイドバーとステータスバーに出す。
+ *
+ * - `scan`: 両側の一覧。Drive の件数は辿り終えるまで総数が分からない。
+ * - `download`: 総量が分かる。割合はバイト数で出す（件数だと大きな添付で止まって見える）。
+ * - `finish`: ベースラインの保存。
+ */
+export type CloneProgress =
+  | { phase: "scan"; remoteFound: number; localDone: number; localTotal: number }
+  | {
+      phase: "download";
+      done: number;
+      total: number;
+      bytesDone: number;
+      bytesTotal: number;
+      failed: number;
+      /** 最後に扱い終えたパス。 */
+      current: string;
+    }
+  | { phase: "finish" };
+
+export interface CloneOptions {
+  onProgress?: (p: CloneProgress) => void;
+  /** 中止。ベースラインは書かない。すでに降りたファイルは残る。 */
+  signal?: AbortSignal;
+}

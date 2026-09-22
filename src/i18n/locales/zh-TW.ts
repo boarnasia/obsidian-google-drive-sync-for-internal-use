@@ -112,6 +112,22 @@ export const zhTW: Strings = {
   panelMore: (n) => `…還有 ${n} 項`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，衝突副本 ${conflicts} 個，僅本機 ${localOnly} 個`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "正在從 Drive 匯入",
+  progressScan: (n) => `正在列出檔案… Drive 上 ${n} 個`,
+  progressScanLocal: (d, t) => `本機檢查 ${d} / ${t}`,
+  progressFinishing: "正在收尾…",
+  progressFiles: (d, t) => `${d} / ${t} 個檔案`,
+  progressRemaining: (x) => `剩餘約 ${x}`,
+  durationSeconds: (n) => `${n} 秒`,
+  durationMinutes: (n) => `${n} 分鐘`,
+  progressFailed: (n) => `${n} 個失敗`,
+  btnCancelClone: "中止",
+  tipCancelClone: "停止匯入。已下載的檔案會保留，但不會記錄為已同步。",
+  cloneAborted: (n) => `已中止匯入，已下載的 ${n} 個檔案會保留`,
+  statusBarClone: (p) => `匯入中 ${p}%`,
+  statusBarScan: "匯入中…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "設定檔",
   panelIgnoreDesc:

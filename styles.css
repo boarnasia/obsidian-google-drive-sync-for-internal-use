@@ -77,3 +77,27 @@
 .gds-panel-remote {
   color: var(--text-error);
 }
+
+/* 取り込みの進み具合 */
+.gds-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gds-progress-title {
+  font-weight: var(--font-semibold);
+}
+
+.gds-progress-bar {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--interactive-accent);
+}
+
+/* 長いパスは一行に収め、末尾を省略する。折り返すと更新のたびに高さが変わり、下の行が揺れる。 */
+.gds-progress-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

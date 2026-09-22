@@ -121,6 +121,22 @@ export const ptBR: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone concluído — ↓${down}, ${conflicts} cópia(s) de conflito, ${localOnly} arquivo(s) somente local`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Importando do Drive",
+  progressScan: (n) => `Listando arquivos… ${n} no Drive`,
+  progressScanLocal: (d, t) => `verificando ${d} / ${t} aqui`,
+  progressFinishing: "Finalizando…",
+  progressFiles: (d, t) => `${d} / ${t} arquivos`,
+  progressRemaining: (x) => `faltam cerca de ${x}`,
+  durationSeconds: (n) => `${n} s`,
+  durationMinutes: (n) => `${n} min`,
+  progressFailed: (n) => `${n} com falha`,
+  btnCancelClone: "Cancelar",
+  tipCancelClone: "Interrompe a importação. Os arquivos já baixados ficam; nada é registrado como sincronizado.",
+  cloneAborted: (n) => `importação cancelada — os ${n} arquivos já baixados ficam aqui`,
+  statusBarClone: (p) => `Importando ${p}%`,
+  statusBarScan: "Importando…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "Arquivos de configuração",
   panelIgnoreDesc:

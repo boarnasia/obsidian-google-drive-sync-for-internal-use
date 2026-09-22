@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { SyncEngine, defaultDeleteGuard } from "../../src/sync/SyncEngine";
-import { SyncStateData } from "../../src/sync/types";
+import { CloneProgress, SyncStateData } from "../../src/sync/types";
 import { FakeLocal, FakeRemote, enc } from "../helpers/fakes";
 import { ignoreMatcher } from "../../src/sync/ignore";
 
@@ -749,5 +749,56 @@ describe("ローカルの変更の有無", () => {
     };
 
     expect(await changed(s1)).toBe(false);
+  });
+});
+
+describe("clone の進み具合と中止", () => {
+  it("一覧の段階を経て、ダウンロードの件数とバイト数を数える", async () => {
+    await R.put("a.md", enc("12345"));
+    await R.put("b.md", enc("67"));
+    const seen: CloneProgress[] = [];
+
+    await engine().clone({}, { onProgress: (p) => seen.push(p) });
+
+    expect(seen[0].phase).toBe("download"); // 偽物の一覧は件数を報告しない
+    const last = seen[seen.length - 1];
+    expect(last).toMatchObject({ phase: "download", done: 2, total: 2, bytesDone: 7, bytesTotal: 7, failed: 0 });
+  });
+
+  it("失敗した件数も数える", async () => {
+    await R.put("a.md", enc("x"));
+    L.write = async () => {
+      throw new Error("disk full");
+    };
+    let last: CloneProgress | undefined;
+
+    await engine().clone({}, { onProgress: (p) => (last = p) });
+
+    expect(last).toMatchObject({ phase: "download", done: 1, failed: 1 });
+  });
+
+  it("中止すると、まだ始めていないファイルは取りに行かない", async () => {
+    for (let i = 0; i < 40; i++) await R.put(`n${i}.md`, enc(String(i)));
+    const abort = new AbortController();
+
+    const { report, aborted } = await engine().clone(
+      {},
+      {
+        signal: abort.signal,
+        onProgress: (p) => {
+          if (p.phase === "download" && p.done >= 1) abort.abort();
+        },
+      }
+    );
+
+    expect(aborted).toBe(true);
+    expect(report.downloaded.length).toBeLessThan(40);
+    // 走り出したものは最後まで書く。書きかけのファイルは残さない。
+    for (const path of report.downloaded) expect(L.text(path)).toBe(R.text(path));
+  });
+
+  it("中止しなければ aborted は false", async () => {
+    await R.put("a.md", enc("x"));
+    expect((await clone()).aborted).toBe(false);
   });
 });

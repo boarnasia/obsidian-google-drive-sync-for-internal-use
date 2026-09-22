@@ -7,6 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import GoogleDriveSyncPlugin from "../src/main";
 import { DEFAULT_SETTINGS, Settings } from "../src/settings";
+import { emptyReport } from "../src/sync/types";
 import { en, ja, setLanguage, t } from "../src/i18n";
 import type { App as ObsidianApp } from "obsidian";
 import { App, MockSettingDefinition } from "./helpers/obsidian-mock";
@@ -323,5 +324,39 @@ describe("保存済み設定の復元", () => {
   it("保存済みの言語が起動時に効く", async () => {
     await loadPlugin({ language: "ja" });
     expect(t.syncHeading).toBe(ja.syncHeading);
+  });
+});
+
+describe("取り込みの進み具合", () => {
+  it("取り込みの間だけ進み具合を持ち、終わったら消す", async () => {
+    const { plugin } = await loadPlugin();
+    const seen: (string | null)[] = [];
+    plugin.onCloneProgress(() => seen.push(plugin.cloneProgress?.phase ?? null));
+    plugin.controller.clone = async (opts = {}) => {
+      opts.onProgress?.({ phase: "finish" });
+      return emptyReport();
+    };
+
+    await plugin.runClone();
+
+    expect(seen[0]).toBe("scan"); // 押した直後に、待たずに出る
+    expect(seen).toContain("finish");
+    expect(seen[seen.length - 1]).toBeNull();
+    expect(plugin.cloneProgress).toBeNull();
+    expect(plugin.cloning).toBe(false);
+  });
+
+  it("中止は取り込みに渡した signal を立てる", async () => {
+    const { plugin } = await loadPlugin();
+    let signal: AbortSignal | undefined;
+    plugin.controller.clone = async (opts = {}) => {
+      signal = opts.signal;
+      plugin.cancelClone();
+      return emptyReport();
+    };
+
+    await plugin.runClone();
+
+    expect(signal?.aborted).toBe(true);
   });
 });

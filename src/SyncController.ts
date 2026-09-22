@@ -6,7 +6,7 @@ import { TokenSet, refreshAccessToken } from "./providers/google/oauth";
 import { googleLoginLoopback } from "./obsidian/googleLogin";
 import { HttpSend } from "./providers/RemoteProvider";
 import { SyncEngine } from "./sync/SyncEngine";
-import { SyncPlan, SyncReport, SyncStateData } from "./sync/types";
+import { CloneOptions, SyncPlan, SyncReport, SyncStateData } from "./sync/types";
 import { ObsidianLocalStore } from "./obsidian/ObsidianLocalStore";
 import { requestUrlHttp } from "./obsidian/requestUrlHttp";
 import { withRetry } from "./util/retry";
@@ -236,19 +236,29 @@ export class SyncController {
    * 初回接続と、状態が壊れたときの復旧の両方がここを通る。ローカルにしか無い
    * ファイルは消さず、報告に載せて呼び出し側が分類できるようにする。
    */
-  clone(): Promise<SyncReport> {
-    return this.exclusive(() => this.cloneNow());
+  clone(opts: CloneOptions = {}): Promise<SyncReport> {
+    return this.exclusive(() => this.cloneNow(opts));
   }
 
-  private async cloneNow(): Promise<SyncReport> {
+  private async cloneNow(opts: CloneOptions): Promise<SyncReport> {
     const target = this.requireTarget();
     const remote = this.remoteFor(target);
     await this.checkVersion(remote, { write: true });
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await (await this.engineFor(target, remote)).clone(this.settings.syncState[key] ?? {});
+    const engine = await this.engineFor(target, remote);
+    const { state, report, aborted } = await engine.clone(this.settings.syncState[key] ?? {}, opts);
     this.insideIds.set(key, remote.insideIds());
+    if (aborted) {
+      // ベースラインは書かない。書くと、まだ降りていないファイルがリモートで消えたと
+      // 読まれる。途中で作った競合コピーだけは未整理に入れ、勝手に上がらないようにする。
+      const copies = report.conflicts.map((c) => c.conflictPath);
+      this.settings.unsorted[key] = [...new Set([...this.unsortedOf(key), ...copies])];
+      await this.persist();
+      throw new Error(t.cloneAborted(report.downloaded.length));
+    }
+    opts.onProgress?.({ phase: "finish" });
     this.lastBlocked = false;
     // 取り込みは両側を数え直すので、未整理も持ち越さずに作り直す。
     this.settings.unsorted[key] = [...report.localOnly];

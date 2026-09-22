@@ -112,6 +112,22 @@ export const zh: Strings = {
   panelMore: (n) => `…还有 ${n} 项`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，冲突副本 ${conflicts} 个，仅本地 ${localOnly} 个`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "正在从 Drive 导入",
+  progressScan: (n) => `正在列出文件… Drive 上 ${n} 个`,
+  progressScanLocal: (d, t) => `本地检查 ${d} / ${t}`,
+  progressFinishing: "正在收尾…",
+  progressFiles: (d, t) => `${d} / ${t} 个文件`,
+  progressRemaining: (x) => `剩余约 ${x}`,
+  durationSeconds: (n) => `${n} 秒`,
+  durationMinutes: (n) => `${n} 分钟`,
+  progressFailed: (n) => `${n} 个失败`,
+  btnCancelClone: "中止",
+  tipCancelClone: "停止导入。已下载的文件会保留，但不会记录为已同步。",
+  cloneAborted: (n) => `已中止导入，已下载的 ${n} 个文件会保留`,
+  statusBarClone: (p) => `导入中 ${p}%`,
+  statusBarScan: "导入中…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "配置文件",
   panelIgnoreDesc:

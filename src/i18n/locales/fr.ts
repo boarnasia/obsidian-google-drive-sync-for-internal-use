@@ -120,6 +120,22 @@ export const fr: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminé — ↓${down}, ${conflicts} copie(s) de conflit, ${localOnly} fichier(s) local uniquement`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Importation depuis Drive",
+  progressScan: (n) => `Liste des fichiers… ${n} sur Drive`,
+  progressScanLocal: (d, t) => `vérification locale ${d} / ${t}`,
+  progressFinishing: "Finalisation…",
+  progressFiles: (d, t) => `${d} / ${t} fichiers`,
+  progressRemaining: (x) => `environ ${x} restant`,
+  durationSeconds: (n) => `${n} s`,
+  durationMinutes: (n) => `${n} min`,
+  progressFailed: (n) => `${n} en échec`,
+  btnCancelClone: "Annuler",
+  tipCancelClone: "Arrête l’importation. Les fichiers déjà téléchargés restent ; rien n’est enregistré comme synchronisé.",
+  cloneAborted: (n) => `importation annulée — les ${n} fichiers déjà téléchargés restent ici`,
+  statusBarClone: (p) => `Importation ${p} %`,
+  statusBarScan: "Importation…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "Fichiers de configuration",
   panelIgnoreDesc:

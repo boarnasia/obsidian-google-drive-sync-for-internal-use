@@ -129,6 +129,22 @@ export const ru: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone завершён — ↓${down}, конфликтных копий: ${conflicts}, только локальных файлов: ${localOnly}`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Импорт из Drive",
+  progressScan: (n) => `Получение списка файлов… в Drive ${n}`,
+  progressScanLocal: (d, t) => `локальная проверка ${d} / ${t}`,
+  progressFinishing: "Завершение…",
+  progressFiles: (d, t) => `${d} / ${t} файлов`,
+  progressRemaining: (x) => `осталось около ${x}`,
+  durationSeconds: (n) => `${n} с`,
+  durationMinutes: (n) => `${n} мин`,
+  progressFailed: (n) => `ошибок: ${n}`,
+  btnCancelClone: "Отмена",
+  tipCancelClone: "Остановить импорт. Уже загруженные файлы останутся; ничего не будет отмечено как синхронизированное.",
+  cloneAborted: (n) => `импорт отменён — уже загруженные файлы (${n}) останутся здесь`,
+  statusBarClone: (p) => `Импорт ${p}%`,
+  statusBarScan: "Импорт…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "Файлы настроек",
   panelIgnoreDesc:

@@ -1,7 +1,8 @@
 import { ButtonComponent, ItemView, Notice, Setting, WorkspaceLeaf } from "obsidian";
 import type GoogleDriveSyncPlugin from "../main";
-import { BlockReason, SyncPlan } from "../sync/types";
+import { BlockReason, CloneProgress, SyncPlan } from "../sync/types";
 import { relativeTime } from "../util/time";
+import { formatBytes, percentOf } from "../util/progress";
 import { ConfirmModal } from "./ConfirmModal";
 import { fullPathOf, openInTextEditor } from "./openExternal";
 import { TEAM_IGNORE_PATH } from "../sync/configFiles";
@@ -32,6 +33,9 @@ export class SyncPanelView extends ItemView {
   private error: string | null = null;
   /** 承認する削除。利用者が選ぶまで空で、既定では何も消さない。 */
   private readonly approved = new Set<string>();
+  /** 取り込みの進み具合を描く場所。進み具合が変わったら、ここだけを描き直す。 */
+  private progressEl: HTMLElement | null = null;
+  private unsubscribe: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf, private readonly plugin: GoogleDriveSyncPlugin) {
     super(leaf);
@@ -50,7 +54,17 @@ export class SyncPanelView extends ItemView {
   }
 
   async onOpen(): Promise<void> {
+    // 全体を描き直すと、分類の一覧のスクロール位置が戻る。進み具合の欄だけを書き換える。
+    this.unsubscribe = this.plugin.onCloneProgress(() => {
+      if (this.plugin.cloneProgress && this.progressEl) this.renderProgress(this.progressEl, this.plugin.cloneProgress);
+      else this.render();
+    });
     await this.refresh();
+  }
+
+  async onClose(): Promise<void> {
+    this.unsubscribe?.();
+    this.unsubscribe = null;
   }
 
   /** 差分を数え直す。数えるだけで、何も動かさない。 */
@@ -126,6 +140,47 @@ export class SyncPanelView extends ItemView {
     return true;
   }
 
+  /**
+   * 取り込みの進み具合。一覧の段階は総数が分からないので、バーを不確定にして
+   * 見つけた件数だけを増やす。ダウンロードの割合はバイト数で出す。
+   */
+  private renderProgress(el: HTMLElement, p: CloneProgress): void {
+    el.empty();
+    el.createDiv({ cls: "gds-progress-title", text: t.progressTitle });
+    const bar = el.createEl("progress", { cls: "gds-progress-bar" });
+    bar.max = 100;
+
+    if (p.phase === "scan") {
+      // value を持たない progress は、ブラウザが不確定（流れる）表示にする。
+      const parts = [t.progressScan(p.remoteFound)];
+      if (p.localTotal > 0) parts.push(t.progressScanLocal(p.localDone, p.localTotal));
+      el.createDiv({ cls: "gds-panel-note", text: parts.join(" · ") });
+    } else if (p.phase === "download") {
+      bar.value = percentOf(p);
+      el.createDiv({
+        cls: "gds-panel-note",
+        text: `${percentOf(p)}% · ${t.progressFiles(p.done, p.total)} · ${formatBytes(p.bytesDone)} / ${formatBytes(p.bytesTotal)}`,
+      });
+      const facts: string[] = [];
+      const remaining = this.plugin.cloneRemainingMs();
+      if (remaining !== null) facts.push(t.progressRemaining(formatDuration(remaining)));
+      if (p.failed > 0) facts.push(t.progressFailed(p.failed));
+      if (facts.length) el.createDiv({ cls: p.failed > 0 ? "gds-panel-blocked" : "gds-panel-note", text: facts.join(" · ") });
+      if (p.current) el.createDiv({ cls: "gds-panel-note gds-progress-current", text: p.current });
+    } else {
+      bar.value = 100;
+      el.createDiv({ cls: "gds-panel-note", text: t.progressFinishing });
+    }
+
+    if (p.phase !== "finish") {
+      const row = el.createDiv({ cls: "gds-panel-actions" });
+      const cancel = this.action(row, t.btnCancelClone, t.tipCancelClone, true, () => {
+        cancel.setDisabled(true);
+        this.plugin.cancelClone();
+      });
+    }
+  }
+
   /** `.tds-ignore` はドットで始まり Obsidian に表示されないので、ここから開く（ADR-0007）。 */
   private renderConfigFiles(root: HTMLElement): void {
     root.createEl("h4", { text: t.panelConfigFiles });
@@ -158,6 +213,13 @@ export class SyncPanelView extends ItemView {
 
   private renderStatus(root: HTMLElement): void {
     const box = root.createDiv({ cls: "gds-panel-status" });
+    this.progressEl = null;
+    const progress = this.plugin.cloneProgress;
+    if (progress) {
+      this.progressEl = box.createDiv({ cls: "gds-progress" });
+      this.renderProgress(this.progressEl, progress);
+      return;
+    }
     if (this.renderVersionGap(box)) return;
     if (this.error) {
       box.createDiv({ cls: "gds-panel-blocked", text: `✗ ${this.error}` });
@@ -368,7 +430,7 @@ export class SyncPanelView extends ItemView {
 
   private runClone(): void {
     void this.withBusy(async () => {
-      const report = await this.plugin.controller.clone();
+      const report = await this.plugin.runClone();
       new Notice(
         t.notice(t.cloneDone(report.downloaded.length, report.conflicts.length, report.localOnly.length)),
         NOTICE_MS
@@ -408,6 +470,12 @@ export class SyncPanelView extends ItemView {
       this.approved.clear();
     });
   }
+}
+
+/** 残り時間。1 分未満は 5 秒刻み、それ以上は分に切り上げる。細かく出すと数字が揺れて読めない。 */
+function formatDuration(ms: number): string {
+  const s = Math.max(1, Math.ceil(ms / 1000));
+  return s < 60 ? t.durationSeconds(Math.ceil(s / 5) * 5) : t.durationMinutes(Math.ceil(s / 60));
 }
 
 /** 一覧に出す最大行数。数百件をそのまま描くと画面が固まる。 */

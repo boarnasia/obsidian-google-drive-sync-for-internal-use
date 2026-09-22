@@ -2,7 +2,18 @@ import { PutResult, RemoteObject, RemoteProvider } from "../providers/RemoteProv
 import { conflictPath, safeVaultPath } from "../util/paths";
 import { sha256Hex } from "../util/hash";
 import { LocalStore } from "./LocalStore";
-import { FileState, LocalFile, LocalStamp, LocalStat, SyncPlan, SyncReport, SyncStateData, emptyReport } from "./types";
+import {
+  CloneOptions,
+  CloneProgress,
+  FileState,
+  LocalFile,
+  LocalStamp,
+  LocalStat,
+  SyncPlan,
+  SyncReport,
+  SyncStateData,
+  emptyReport,
+} from "./types";
 import { runPool } from "../util/pool";
 
 /**
@@ -101,8 +112,29 @@ export class SyncEngine {
   ) {}
 
   /** 両側を読む。ここだけがネットワークとファイルを触る入口。 */
-  private async snapshot(prev: SyncStateData): Promise<Sides> {
-    const [localList, remoteList] = await Promise.all([this.local.list(stampsOf(prev)), this.remote.list()]);
+  private async snapshot(prev: SyncStateData, onScan?: (p: CloneProgress) => void): Promise<Sides> {
+    // 両側は並んで進むので、進み具合は二つを一つにまとめて渡す。
+    const scan = { phase: "scan" as const, remoteFound: 0, localDone: 0, localTotal: 0 };
+    const report = onScan ? () => onScan({ ...scan }) : undefined;
+    const [localList, remoteList] = await Promise.all([
+      this.local.list(
+        stampsOf(prev),
+        report &&
+          ((done, total) => {
+            scan.localDone = done;
+            scan.localTotal = total;
+            report();
+          })
+      ),
+      this.remote.list(
+        "",
+        report &&
+          ((found) => {
+            scan.remoteFound = found;
+            report();
+          })
+      ),
+    ]);
     return {
       localMap: new Map(localList.filter((f) => !this.ignored(f.path)).map((f) => [f.path, f])),
       remoteMap: new Map(remoteList.filter((o) => !this.ignored(o.path)).map((o) => [o.path, o])),
@@ -226,14 +258,31 @@ export class SyncEngine {
    * ローカルにしか無いファイルは消さない。同名で内容が違うファイルは、ローカル版を
    * 競合コピーに退避してからリモート版を置く。ベースラインはこの結果で作り直す。
    */
-  async clone(prev: SyncStateData = {}): Promise<{ state: SyncStateData; report: SyncReport }> {
-    const { localMap, remoteMap } = await this.snapshot(prev);
+  async clone(
+    prev: SyncStateData = {},
+    opts: CloneOptions = {}
+  ): Promise<{ state: SyncStateData; report: SyncReport; aborted: boolean }> {
+    const { onProgress, signal } = opts;
+    const { localMap, remoteMap } = await this.snapshot(prev, onProgress);
     const state: SyncStateData = {};
     const report = emptyReport();
     // 退避先が同じ秒に衝突しないよう、既存のパスと今回作った分を憶えておく。
     const taken = new Set<string>(localMap.keys());
 
+    const progress = {
+      phase: "download" as const,
+      done: 0,
+      total: remoteMap.size,
+      bytesDone: 0,
+      bytesTotal: [...remoteMap.values()].reduce((sum, R) => sum + R.size, 0),
+      failed: 0,
+      current: "",
+    };
+    onProgress?.({ ...progress });
+
     await runPool(remoteMap, Math.max(this.concurrency, CLONE_CONCURRENCY), async ([path, R]) => {
+      // 走り出したものは最後まで書かせる。途中で切ると、書きかけのファイルが残る。
+      if (signal?.aborted) return;
       try {
         const L = localMap.get(path);
         const data = await this.remote.get(path);
@@ -253,12 +302,18 @@ export class SyncEngine {
         report.downloaded.push(path);
       } catch (e) {
         report.errors.push({ path, error: (e as Error).message });
+        progress.failed++;
+      } finally {
+        progress.done++;
+        progress.bytesDone += R.size;
+        progress.current = path;
+        onProgress?.({ ...progress });
       }
     });
 
     // リモートに無いローカルのファイル。退避した競合コピーもここに入る。
     report.localOnly = [...taken].filter((p) => !remoteMap.has(p)).sort();
-    return { state, report };
+    return { state, report, aborted: signal?.aborted ?? false };
   }
 
   /** 同じ秒に複数のファイルを退避しても名前がぶつからないようにする。 */

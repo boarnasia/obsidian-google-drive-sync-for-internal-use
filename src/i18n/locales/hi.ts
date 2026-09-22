@@ -118,6 +118,22 @@ export const hi: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone पूरा — ↓${down}, ${conflicts} टकराव प्रतियाँ, ${localOnly} केवल-स्थानीय फ़ाइलें`,
 
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Drive से आयात हो रहा है",
+  progressScan: (n) => `फ़ाइलें सूचीबद्ध हो रही हैं… Drive पर ${n}`,
+  progressScanLocal: (d, t) => `स्थानीय जाँच ${d} / ${t}`,
+  progressFinishing: "समाप्त किया जा रहा है…",
+  progressFiles: (d, t) => `${d} / ${t} फ़ाइलें`,
+  progressRemaining: (x) => `लगभग ${x} शेष`,
+  durationSeconds: (n) => `${n} से.`,
+  durationMinutes: (n) => `${n} मिनट`,
+  progressFailed: (n) => `${n} विफल`,
+  btnCancelClone: "रोकें",
+  tipCancelClone: "आयात रोकें। डाउनलोड हो चुकी फ़ाइलें रहेंगी; कुछ भी सिंक के रूप में दर्ज नहीं होगा।",
+  cloneAborted: (n) => `आयात रोका गया — डाउनलोड हो चुकी ${n} फ़ाइलें यहीं रहेंगी`,
+  statusBarClone: (p) => `आयात ${p}%`,
+  statusBarScan: "आयात हो रहा है…",
+
   // ------------------------------------------------------------ 設定ファイル
   panelConfigFiles: "कॉन्फ़िग फ़ाइलें",
   panelIgnoreDesc:

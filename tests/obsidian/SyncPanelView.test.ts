@@ -29,11 +29,15 @@ function fakePlugin(over: { plan?: SyncPlan; ready?: boolean; connected?: boolea
       connected: over.connected ?? true,
       ready: over.ready ?? true,
       plan: vi.fn(async () => over.plan ?? plan()),
-      clone: vi.fn(async () => emptyReport()),
       shareLocalFiles: vi.fn(async (_paths: readonly string[]) => emptyReport()),
       trashLocalFiles: vi.fn(async (paths: readonly string[]) => ({ trashed: [...paths], errors: [] as string[] })),
     },
     runSync: vi.fn(async (_opts?: { approvedDeletes?: ReadonlySet<string> }) => undefined),
+    runClone: vi.fn(async () => emptyReport()),
+    cancelClone: vi.fn(),
+    cloneProgress: null,
+    cloneRemainingMs: () => null,
+    onCloneProgress: () => () => undefined,
     setAutoSync: vi.fn(async (_on: boolean) => undefined),
   };
 }
@@ -67,7 +71,7 @@ describe("数え直し", () => {
 
     expect(plugin.controller.plan).toHaveBeenCalledTimes(1);
     expect(plugin.runSync).not.toHaveBeenCalled();
-    expect(plugin.controller.clone).not.toHaveBeenCalled();
+    expect(plugin.runClone).not.toHaveBeenCalled();
   });
 
   it("同期先が未設定なら問い合わせない", async () => {
@@ -201,7 +205,7 @@ describe("clone", () => {
     await panel.refresh();
 
     panel.runClone();
-    await vi.waitFor(() => expect(plugin.controller.clone).toHaveBeenCalled());
+    await vi.waitFor(() => expect(plugin.runClone).toHaveBeenCalled());
   });
 
   it("clone の後は差分を数え直す", async () => {
