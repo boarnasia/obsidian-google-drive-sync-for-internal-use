@@ -121,6 +121,17 @@ export const ptBR: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone concluído — ↓${down}, ${conflicts} cópia(s) de conflito, ${localOnly} arquivo(s) somente local`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "Sem conexão de rede. A sincronização volta sozinha quando a conexão retornar. Para tentar agora, toque em “Verificar estado”.",
+  failServer: "O Google Drive não está respondendo agora. A sincronização volta sozinha em instantes.",
+  failAuth: "Seu acesso ao Google expirou. Reconecte pelas configurações.",
+  failTarget: "Não foi possível abrir a pasta sincronizada. Veja se ela não está na lixeira e se você ainda tem acesso ao drive compartilhado.",
+  failQuota: "O Drive ficou sem espaço, ou o limite de arquivos foi atingido. Fale com o administrador.",
+  failDetail: (m) => `detalhes: ${m}`,
+  btnOpenSettings: "Abrir configurações",
+  tipOpenSettings: "Abrir as configurações do plugin para reconectar",
+  failRetryIn: (x) => `nova tentativa em cerca de ${x}`,
+
   // ------------------------------------------------------------ 取り込みの進み具合
   progressTitle: "Importando do Drive",
   progressScan: (n) => `Listando arquivos… ${n} no Drive`,

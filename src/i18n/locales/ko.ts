@@ -119,6 +119,17 @@ export const ko: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "네트워크에 연결할 수 없습니다. 연결이 돌아오면 자동으로 다시 동기화합니다. 지금 시도하려면 ‘상태 확인’을 누르세요.",
+  failServer: "Google Drive가 일시적으로 응답하지 않습니다. 잠시 후 자동으로 다시 시작합니다.",
+  failAuth: "Google 인증이 만료되었습니다. 설정에서 다시 연결하세요.",
+  failTarget: "동기화 폴더를 열 수 없습니다. 휴지통에 있지 않은지, 공유 드라이브 권한이 있는지 확인하세요.",
+  failQuota: "Drive 용량 또는 파일 수 상한에 도달했습니다. 관리자에게 문의하세요.",
+  failDetail: (m) => `자세히: ${m}`,
+  btnOpenSettings: "설정 열기",
+  tipOpenSettings: "다시 연결하려면 플러그인 설정 열기",
+  failRetryIn: (x) => `약 ${x} 후에 다시 시도합니다`,
+
   // ------------------------------------------------------------ 取り込みの進み具合
   progressTitle: "Drive에서 가져오는 중",
   progressScan: (n) => `파일 목록 확인 중… Drive ${n}개`,

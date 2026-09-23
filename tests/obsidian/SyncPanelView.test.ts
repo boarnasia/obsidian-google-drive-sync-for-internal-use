@@ -33,6 +33,14 @@ function fakePlugin(over: { plan?: SyncPlan; ready?: boolean; connected?: boolea
       trashLocalFiles: vi.fn(async (paths: readonly string[]) => ({ trashed: [...paths], errors: [] as string[] })),
     },
     runSync: vi.fn(async (_opts?: { approvedDeletes?: ReadonlySet<string> }) => undefined),
+    manifest: { id: "google-drive-sync-for-internal-use" },
+    syncFailure: null as { kind: string; message: string; retryAt: number | null } | null,
+    noteFailure: vi.fn(function (this: void, e: unknown) {
+      plugin.syncFailure = { kind: "other", message: e instanceof Error ? e.message : String(e), retryAt: null };
+    }),
+    clearFailure: vi.fn(() => {
+      plugin.syncFailure = null;
+    }),
     runClone: vi.fn(async () => emptyReport()),
     cancelClone: vi.fn(),
     cloneProgress: null,

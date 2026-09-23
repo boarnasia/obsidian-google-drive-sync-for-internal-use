@@ -11,10 +11,31 @@ import {
 import { DEFAULT_SETTINGS, DriveTarget, Settings } from "./settings";
 import { SyncController } from "./SyncController";
 import { CloneProgress, SyncReport } from "./sync/types";
+import { FailureKind, classifyFailure, isTransient } from "./sync/errors";
 import { RateEstimator, percentOf } from "./util/progress";
 import { SYNC_PANEL_VIEW, SyncPanelView } from "./obsidian/SyncPanelView";
 import { parseFolderId } from "./providers/drive/DriveTarget";
 import { LANGUAGE_NAMES, isLang, setLanguage, t } from "./i18n";
+
+/** 表示中の失敗。`retryAt` はこちらから拾い直す予定時刻（自然に直らない種類では null）。 */
+export interface SyncFailure {
+  kind: FailureKind;
+  message: string;
+  retryAt: number | null;
+}
+
+/**
+ * 自動の再試行の間隔。短い間隔から始めて 5 分で頭打ちにする。復帰直後のネットワークは
+ * 数秒で戻ることが多く、戻らないときに毎分叩いても意味が無い。
+ */
+const RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000];
+
+/**
+ * スリープからの復帰を見つけるための心拍。タイマーは眠っている間は進まないので、
+ * 前回から大きく飛んでいたら眠っていたとみなす。
+ */
+const HEARTBEAT_MS = 30_000;
+const WAKE_GAP_MS = HEARTBEAT_MS * 3;
 
 export default class GoogleDriveSyncPlugin extends Plugin {
   settings: Settings = DEFAULT_SETTINGS;
@@ -26,8 +47,12 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   private pendingLocal = false;
   /** 変更が届いたパス。デバウンス後にまとめて判断する。 */
   private readonly touched = new Set<string>();
-  /** 直近の同期の失敗。自動同期は通知を出さないので、サイドバーに出して気づかせる。 */
-  lastSyncError: string | null = null;
+  /** 直近の失敗。自動同期は通知を出さないので、サイドバーに出して気づかせる。 */
+  syncFailure: SyncFailure | null = null;
+  /** 今が何回目の再試行か。成功したら 0 に戻す。 */
+  private retryStep = 0;
+  private retryTimer: number | null = null;
+  private lastBeat = Date.now();
 
   /** 同期先の問い合わせ中。終わるまで同期を待たせ、古い同期先で走らせない。 */
   private resolvingTarget: Promise<void> | null = null;
@@ -80,12 +105,24 @@ export default class GoogleDriveSyncPlugin extends Plugin {
       })
     );
 
+    // ネットワークが戻ったら待たずに拾い直す。復帰の合図は OS から来る。
+    this.registerDomEvent(window, "online", () => this.retryAfterWake());
+    // スリープ中はタイマーが進まない。飛んだ分で復帰を見つける。
+    this.registerInterval(
+      window.setInterval(() => {
+        const gap = Date.now() - this.lastBeat;
+        this.lastBeat = Date.now();
+        if (gap > WAKE_GAP_MS) this.retryAfterWake();
+      }, HEARTBEAT_MS)
+    );
+
     this.applyPolling();
     void this.resolveTarget();
   }
 
   onunload(): void {
     this.stopPolling();
+    this.cancelRetry();
     this.cancelClone();
     if (this.progressTimer !== null) window.clearTimeout(this.progressTimer);
   }
@@ -255,11 +292,11 @@ export default class GoogleDriveSyncPlugin extends Plugin {
       const report = opts.probeFirst
         ? await this.controller.syncIfChanged()
         : await this.controller.sync({ approvedDeletes: opts.approvedDeletes });
-      this.lastSyncError = null;
+      this.clearFailure();
       if (report && (!opts.quiet || this.didSomething(report))) new Notice(t.notice(this.summarise(report)));
     } catch (e) {
-      this.lastSyncError = e instanceof Error ? e.message : String(e);
-      if (!opts.quiet) new Notice(t.notice(this.lastSyncError));
+      this.noteFailure(e);
+      if (!opts.quiet) new Notice(t.notice(this.syncFailure?.message ?? String(e)));
     } finally {
       this.syncing = false;
       this.refreshPanels();
@@ -284,6 +321,59 @@ export default class GoogleDriveSyncPlugin extends Plugin {
       (r.deferredDeletes.length ? t.syncDeferred(r.deferredDeletes.length) : "") +
       (r.errors.length ? t.syncErrorCount(r.errors.length) : "")
     );
+  }
+
+  // ------------------------------------------------------------ 失敗と自動復帰
+
+  /**
+   * 失敗を控える。自然に直る種類（ネットワーク断、Drive の一時障害）は、間隔を
+   * 伸ばしながらこちらから拾い直す。直らない種類は叩き続けても Google に弾かれる
+   * だけなので、表示だけにして待たない。
+   */
+  noteFailure(error: unknown): void {
+    const kind = classifyFailure(error);
+    const message = error instanceof Error ? error.message : String(error);
+    this.cancelRetry();
+    const retryAt = isTransient(kind) ? this.scheduleRetry() : null;
+    this.syncFailure = { kind, message, retryAt };
+    this.refreshPanels();
+  }
+
+  /** 成功した。控えも再試行も捨てる。 */
+  clearFailure(): void {
+    this.cancelRetry();
+    this.retryStep = 0;
+    if (this.syncFailure) {
+      this.syncFailure = null;
+      this.refreshPanels();
+    }
+  }
+
+  /** 次の再試行を予約し、その時刻を返す。 */
+  private scheduleRetry(): number {
+    const delay = RETRY_DELAYS_MS[Math.min(this.retryStep, RETRY_DELAYS_MS.length - 1)];
+    this.retryStep++;
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = null;
+      void this.runSync({ probeFirst: true, quiet: true });
+    }, delay);
+    return Date.now() + delay;
+  }
+
+  private cancelRetry(): void {
+    if (this.retryTimer !== null) window.clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  /**
+   * ネットワークの復帰、またはスリープからの復帰。自然に直る失敗を抱えていれば、
+   * 予約を待たずに、間隔も最初に戻して試す。
+   */
+  private retryAfterWake(): void {
+    if (!this.syncFailure || !isTransient(this.syncFailure.kind)) return;
+    this.cancelRetry();
+    this.retryStep = 0;
+    void this.runSync({ probeFirst: true, quiet: true });
   }
 
   // -------------------------------------------------------------- 同期先

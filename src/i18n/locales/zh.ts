@@ -112,6 +112,17 @@ export const zh: Strings = {
   panelMore: (n) => `…还有 ${n} 项`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，冲突副本 ${conflicts} 个，仅本地 ${localOnly} 个`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "无法连接网络。连接恢复后会自动继续同步。要立即尝试，请点击“检查状态”。",
+  failServer: "Google Drive 暂时没有响应。稍后会自动继续同步。",
+  failAuth: "Google 登录已过期。请在设置中重新连接。",
+  failTarget: "无法打开同步文件夹。请确认它不在回收站中，并且你仍有共享云端硬盘的权限。",
+  failQuota: "Drive 空间已满，或已达到文件数量上限。请联系管理员。",
+  failDetail: (m) => `详情：${m}`,
+  btnOpenSettings: "打开设置",
+  tipOpenSettings: "打开插件设置以重新连接",
+  failRetryIn: (x) => `约 ${x} 后重试`,
+
   // ------------------------------------------------------------ 取り込みの進み具合
   progressTitle: "正在从 Drive 导入",
   progressScan: (n) => `正在列出文件… Drive 上 ${n} 个`,

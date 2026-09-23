@@ -101,3 +101,8 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* 自然に直る失敗。赤で出すと、待てばよいものまで事故に見える。 */
+.gds-panel-warning {
+  color: var(--text-warning);
+}

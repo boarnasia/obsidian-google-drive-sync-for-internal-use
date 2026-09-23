@@ -120,6 +120,17 @@ export const es: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminado — ↓${down}, ${conflicts} copia(s) de conflicto, ${localOnly} archivo(s) solo local`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "Sin conexión a la red. La sincronización se reanuda sola cuando vuelva la conexión. Para probar ahora, pulsa «Comprobar estado».",
+  failServer: "Google Drive no responde en este momento. La sincronización se reanuda sola en breve.",
+  failAuth: "Tu sesión de Google ha caducado. Vuelve a conectarte desde los ajustes.",
+  failTarget: "No se puede abrir la carpeta de sincronización. Comprueba que no esté en la papelera y que sigas teniendo acceso a la unidad compartida.",
+  failQuota: "Drive se quedó sin espacio o se alcanzó el límite de archivos. Avisa a tu administrador.",
+  failDetail: (m) => `detalles: ${m}`,
+  btnOpenSettings: "Abrir ajustes",
+  tipOpenSettings: "Abrir los ajustes del plugin para volver a conectar",
+  failRetryIn: (x) => `reintento en unos ${x}`,
+
   // ------------------------------------------------------------ 取り込みの進み具合
   progressTitle: "Importando desde Drive",
   progressScan: (n) => `Listando archivos… ${n} en Drive`,

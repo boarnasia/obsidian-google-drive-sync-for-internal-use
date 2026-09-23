@@ -119,6 +119,17 @@ export const ja: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 完了 — ↓${down}、競合コピー ${conflicts} 件、ローカル固有 ${localOnly} 件`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "ネットワークに接続できません。接続が戻ると自動で再開します。すぐ試すには「状態を確認」を押してください。",
+  failServer: "Google Drive が一時的に応答していません。しばらくすると自動で再開します。",
+  failAuth: "Google の認証が切れました。設定から再接続してください。",
+  failTarget: "同期先のフォルダを開けません。ゴミ箱に入っていないか、共有ドライブの権限があるかを確かめてください。",
+  failQuota: "Drive の容量、またはファイル数の上限に達しました。管理者に連絡してください。",
+  failDetail: (m) => `詳細: ${m}`,
+  btnOpenSettings: "設定を開く",
+  tipOpenSettings: "再接続するために設定を開く",
+  failRetryIn: (x) => `約 ${x} 後に再試行します`,
+
   // ------------------------------------------------------------ 取り込みの進み具合
   progressTitle: "Drive から取り込み中",
   progressScan: (n) => `一覧を取得中… Drive ${n} 件`,

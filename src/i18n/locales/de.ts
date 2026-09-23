@@ -120,6 +120,17 @@ export const de: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone fertig — ↓${down}, ${conflicts} Konfliktkopie(n), ${localOnly} nur lokale Datei(en)`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "Keine Netzwerkverbindung. Die Synchronisierung läuft von selbst weiter, sobald die Verbindung zurück ist. Zum sofortigen Versuch „Status prüfen“ drücken.",
+  failServer: "Google Drive antwortet gerade nicht. Die Synchronisierung läuft in Kürze von selbst weiter.",
+  failAuth: "Deine Google-Anmeldung ist abgelaufen. Verbinde dich in den Einstellungen neu.",
+  failTarget: "Der synchronisierte Ordner lässt sich nicht öffnen. Prüfe, ob er im Papierkorb liegt und ob du noch Zugriff auf die geteilte Ablage hast.",
+  failQuota: "Drive hat keinen Speicher mehr, oder das Dateilimit ist erreicht. Wende dich an deine Administration.",
+  failDetail: (m) => `Details: ${m}`,
+  btnOpenSettings: "Einstellungen öffnen",
+  tipOpenSettings: "Plugin-Einstellungen zum Neuverbinden öffnen",
+  failRetryIn: (x) => `neuer Versuch in etwa ${x}`,
+
   // ------------------------------------------------------------ 取り込みの進み具合
   progressTitle: "Import aus Drive",
   progressScan: (n) => `Dateien werden aufgelistet … ${n} in Drive`,

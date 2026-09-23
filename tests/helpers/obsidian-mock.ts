@@ -113,6 +113,15 @@ function makeEl(): Record<string, unknown> {
       clearInterval: (id: unknown) => clearInterval(id as NodeJS.Timeout),
       localStorage: { getItem: () => null },
       open: () => undefined,
+      // `online` などの window イベントを、テストから投げられるようにする。
+      ...(() => {
+        const target = new EventTarget();
+        return {
+          addEventListener: target.addEventListener.bind(target),
+          removeEventListener: target.removeEventListener.bind(target),
+          dispatchEvent: target.dispatchEvent.bind(target),
+        };
+      })(),
     };
   }
 }
@@ -173,6 +182,9 @@ export class Plugin {
     this.manifest = manifest;
   }
   addStatusBarItem() { return makeEl(); }
+  registerDomEvent(el: { addEventListener(type: string, fn: () => void): void }, type: string, fn: () => void) {
+    el.addEventListener(type, fn);
+  }
   addRibbonIcon(_icon: string, _title: string, cb: unknown) { this._ribbons.push(cb); return makeEl(); }
   addCommand(cmd: { id: string }) { this._commands.push(cmd); return cmd; }
   addSettingTab(tab: { display: () => void }) { this._settingTabs.push(tab); }

@@ -1,6 +1,7 @@
 import { ButtonComponent, ItemView, Notice, Setting, WorkspaceLeaf } from "obsidian";
 import type GoogleDriveSyncPlugin from "../main";
 import { BlockReason, CloneProgress, SyncPlan } from "../sync/types";
+import { FailureKind, isTransient } from "../sync/errors";
 import { relativeTime } from "../util/time";
 import { formatBytes, percentOf } from "../util/progress";
 import { ConfirmModal } from "./ConfirmModal";
@@ -17,6 +18,7 @@ const BRAT_UPDATE_COMMAND = "obsidian42-brat:checkForUpdatesAndUpdate";
 interface AppInternals {
   commands?: { executeCommandById(id: string): boolean };
   plugins?: { enabledPlugins?: Set<string> };
+  setting?: { open(): void; openTabById(id: string): void };
 }
 
 /**
@@ -30,7 +32,6 @@ export class SyncPanelView extends ItemView {
   private plan: SyncPlan | null = null;
   private computedAt = 0;
   private busy = false;
-  private error: string | null = null;
   /** 承認する削除。利用者が選ぶまで空で、既定では何も消さない。 */
   private readonly approved = new Set<string>();
   /** 取り込みの進み具合を描く場所。進み具合が変わったら、ここだけを描き直す。 */
@@ -79,13 +80,14 @@ export class SyncPanelView extends ItemView {
     try {
       this.plan = await this.plugin.controller.plan();
       this.computedAt = Date.now();
-      this.error = null;
+      this.plugin.clearFailure();
       // 承認を待っていないものの選択は残さない。一覧から消えた行の承認が残ると、
       // 次に上限に当たったときに、選んだ憶えの無い削除が選ばれた状態で現れる。
       const held = new Set(this.heldDeletes(this.plan));
       for (const path of [...this.approved]) if (!held.has(path)) this.approved.delete(path);
     } catch (e) {
-      this.error = e instanceof Error ? e.message : String(e);
+      // 失敗の控えと自動の再試行はプラグインが一手に持つ。数え直しの失敗も同じ扱いにする。
+      this.plugin.noteFailure(e);
     } finally {
       this.busy = false;
       this.render();
@@ -138,6 +140,31 @@ export class SyncPanelView extends ItemView {
       }).setCta();
     }
     return true;
+  }
+
+  /**
+   * 失敗の知らせ方。自然に直るものは落ち着いた色で、待てば直ることと、すぐ試す
+   * 手段を出す。直らないものは赤で、必要な操作（再接続など）を添える。
+   */
+  private renderFailure(box: HTMLElement, failure: { kind: FailureKind; message: string; retryAt: number | null }): void {
+    const transient = isTransient(failure.kind);
+    box.createDiv({ cls: transient ? "gds-panel-warning" : "gds-panel-blocked", text: failureText(failure.kind, failure.message) });
+    // 原文も残す。種類分けを外していたとき、これが唯一の手がかりになる。
+    if (failure.kind !== "other") box.createDiv({ cls: "gds-panel-note", text: t.failDetail(failure.message) });
+    if (failure.retryAt !== null) {
+      const left = failure.retryAt - Date.now();
+      if (left > 0) box.createDiv({ cls: "gds-panel-note", text: t.failRetryIn(formatDuration(left)) });
+    }
+    if (failure.kind === "auth") {
+      const row = box.createDiv({ cls: "gds-panel-actions" });
+      this.action(row, t.btnOpenSettings, t.tipOpenSettings, true, () => {
+        const app = this.app as unknown as AppInternals;
+        app.setting?.open();
+        app.setting?.openTabById(this.plugin.manifest.id);
+      }).setCta();
+    }
+    const row = box.createDiv({ cls: "gds-panel-actions" });
+    this.action(row, t.btnRefresh, t.tipRefresh, !this.busy, () => void this.refresh());
   }
 
   /**
@@ -221,8 +248,8 @@ export class SyncPanelView extends ItemView {
       return;
     }
     if (this.renderVersionGap(box)) return;
-    if (this.error) {
-      box.createDiv({ cls: "gds-panel-blocked", text: `✗ ${this.error}` });
+    if (this.plugin.syncFailure) {
+      this.renderFailure(box, this.plugin.syncFailure);
       return;
     }
     if (this.busy && !this.plan) {
@@ -237,9 +264,6 @@ export class SyncPanelView extends ItemView {
       box.createDiv({ cls: "gds-panel-blocked", text: t.panelBlocked });
       for (const reason of this.plan.blocked) box.createDiv({ cls: "gds-panel-note", text: reasonText(reason) });
     }
-    const failed = this.plugin.lastSyncError;
-    if (failed) box.createDiv({ cls: "gds-panel-blocked", text: t.panelSyncFailed(failed) });
-
     const last = this.plugin.settings.lastSyncAt;
     box.createDiv({
       cls: "gds-panel-note",
@@ -481,6 +505,23 @@ function formatDuration(ms: number): string {
 /** 一覧に出す最大行数。数百件をそのまま描くと画面が固まる。 */
 const MAX_ROWS = 50;
 const NOTICE_MS = 10_000;
+
+function failureText(kind: FailureKind, message: string): string {
+  switch (kind) {
+    case "network":
+      return t.failNetwork;
+    case "server":
+      return t.failServer;
+    case "auth":
+      return t.failAuth;
+    case "target":
+      return t.failTarget;
+    case "quota":
+      return t.failQuota;
+    case "other":
+      return t.panelSyncFailed(message);
+  }
+}
 
 function reasonText(reason: BlockReason): string {
   switch (reason) {

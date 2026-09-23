@@ -121,6 +121,17 @@ export const en = {
   cloneDone: (down: number, conflicts: number, localOnly: number): string =>
     `clone done — ↓${down}, ${conflicts} conflict copy/copies, ${localOnly} local-only file(s)`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "No network connection. Syncing resumes on its own once the connection is back. To try right now, press “Check status”.",
+  failServer: "Google Drive is not responding right now. Syncing resumes on its own shortly.",
+  failAuth: "Your Google sign-in has expired. Reconnect from the settings.",
+  failTarget: "The sync folder cannot be opened. Check that it is not in the trash and that you still have access to the shared drive.",
+  failQuota: "Drive is out of space, or the file limit was reached. Ask your administrator.",
+  failDetail: (m: string): string => `details: ${m}`,
+  btnOpenSettings: "Open settings",
+  tipOpenSettings: "Open the plugin settings to reconnect",
+  failRetryIn: (x: string): string => `retrying in about ${x}`,
+
   // ------------------------------------------------------------ 取り込みの進み具合
   progressTitle: "Importing from Drive",
   progressScan: (n: number): string => `Listing files… ${n} on Drive`,

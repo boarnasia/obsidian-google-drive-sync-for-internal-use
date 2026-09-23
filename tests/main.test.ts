@@ -4,7 +4,7 @@
  * 見ているのは「機能が正しいか」ではなく「起動して、設定画面が組み上がり、設定の
  * 読み書きが噛み合っているか」——壊れると誰も設定画面に辿り着けなくなる層である。
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GoogleDriveSyncPlugin from "../src/main";
 import { DEFAULT_SETTINGS, Settings } from "../src/settings";
 import { emptyReport } from "../src/sync/types";
@@ -109,11 +109,11 @@ describe("起動", () => {
       throw new Error("Drive 503");
     };
     await plugin.runSync({ probeFirst: true, quiet: true });
-    expect(plugin.lastSyncError).toBe("Drive 503");
+    expect(plugin.syncFailure).toMatchObject({ kind: "server", message: "Drive 503" });
 
     plugin.controller.syncIfChanged = async () => null;
     await plugin.runSync({ probeFirst: true, quiet: true });
-    expect(plugin.lastSyncError).toBeNull();
+    expect(plugin.syncFailure).toBeNull();
   });
 
   it("サイドバーの操作が走っている間、自動同期は断られに行かない", async () => {
@@ -129,7 +129,7 @@ describe("起動", () => {
     await plugin.runSync({ probeFirst: true, quiet: true });
 
     expect(called).toBe(false);
-    expect(plugin.lastSyncError).toBeNull();
+    expect(plugin.syncFailure).toBeNull();
   });
 });
 
@@ -358,5 +358,84 @@ describe("取り込みの進み具合", () => {
     await plugin.runClone();
 
     expect(signal?.aborted).toBe(true);
+  });
+});
+
+describe("失敗の知らせ方と自動復帰", () => {
+  const failing = async (message: string) => {
+    const { plugin } = await loadPlugin();
+    Object.defineProperty(plugin.controller, "ready", { get: () => true });
+    plugin.controller.syncIfChanged = async () => {
+      throw new Error(message);
+    };
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    return plugin;
+  };
+
+  it("ネットワーク断は、時刻を決めて自分で拾い直す", async () => {
+    const plugin = await failing("net::ERR_INTERNET_DISCONNECTED");
+
+    expect(plugin.syncFailure?.kind).toBe("network");
+    expect(plugin.syncFailure?.retryAt).toBeGreaterThan(Date.now());
+  });
+
+  it("認証切れは自動で拾い直さない（弾かれ続けるだけ）", async () => {
+    const plugin = await failing("OAuth token 400: invalid_grant");
+
+    expect(plugin.syncFailure?.kind).toBe("auth");
+    expect(plugin.syncFailure?.retryAt).toBeNull();
+  });
+
+  it("自動の再試行は、繰り返すほど間隔が延びる", async () => {
+    const plugin = await failing("Drive list 503: busy");
+    const first = (plugin.syncFailure?.retryAt ?? 0) - Date.now();
+
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    const second = (plugin.syncFailure?.retryAt ?? 0) - Date.now();
+
+    expect(second).toBeGreaterThan(first);
+  });
+
+  it("成功すると間隔は最初に戻る", async () => {
+    const plugin = await failing("Drive list 503: busy");
+    await plugin.runSync({ probeFirst: true, quiet: true });
+
+    plugin.controller.syncIfChanged = async () => null;
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    expect(plugin.syncFailure).toBeNull();
+
+    plugin.controller.syncIfChanged = async () => {
+      throw new Error("Drive list 503: busy");
+    };
+    await plugin.runSync({ probeFirst: true, quiet: true });
+
+    expect((plugin.syncFailure?.retryAt ?? 0) - Date.now()).toBeLessThanOrEqual(15_000);
+  });
+
+  it("ネットワークが戻ったら、予約を待たずに試す", async () => {
+    const plugin = await failing("net::ERR_NETWORK_CHANGED");
+    let tries = 0;
+    plugin.controller.syncIfChanged = async () => {
+      tries++;
+      return null;
+    };
+
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(tries).toBe(1));
+    expect(plugin.syncFailure).toBeNull();
+  });
+
+  it("直らない失敗では、ネットワークの復帰で叩き直さない", async () => {
+    const plugin = await failing("OAuth token 400: invalid_grant");
+    let tries = 0;
+    plugin.controller.syncIfChanged = async () => {
+      tries++;
+      return null;
+    };
+
+    window.dispatchEvent(new Event("online"));
+
+    expect(tries).toBe(0);
+    expect(plugin.syncFailure?.kind).toBe("auth");
   });
 });
