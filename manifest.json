@@ -1,7 +1,7 @@
 {
   "id": "google-drive-sync-for-internal-use",
   "name": "Team Drive Sync",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "minAppVersion": "1.13.0",
   "description": "Collaborate with your team via Google Workspace shared drives within your company.",
   "author": "Masato Uehara",

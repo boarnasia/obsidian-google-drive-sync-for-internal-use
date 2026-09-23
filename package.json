@@ -1,6 +1,6 @@
 {
   "name": "team-drive-sync",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Collaborate with your team via Google Workspace shared drives within your company.",
   "main": "main.js",
   "scripts": {
