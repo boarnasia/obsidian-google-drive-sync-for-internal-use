@@ -78,6 +78,8 @@ function makeEl(): Record<string, unknown> {
     removeClass() {},
     addEventListener() {},
     setText() {},
+    show() {},
+    hide() {},
     appendChild() {},
     appendText() {},
     checked: false,
@@ -111,6 +113,15 @@ function makeEl(): Record<string, unknown> {
       clearInterval: (id: unknown) => clearInterval(id as NodeJS.Timeout),
       localStorage: { getItem: () => null },
       open: () => undefined,
+      // `online` などの window イベントを、テストから投げられるようにする。
+      ...(() => {
+        const target = new EventTarget();
+        return {
+          addEventListener: target.addEventListener.bind(target),
+          removeEventListener: target.removeEventListener.bind(target),
+          dispatchEvent: target.dispatchEvent.bind(target),
+        };
+      })(),
     };
   }
 }
@@ -169,6 +180,10 @@ export class Plugin {
   constructor(app: unknown, manifest: unknown) {
     this.app = app;
     this.manifest = manifest;
+  }
+  addStatusBarItem() { return makeEl(); }
+  registerDomEvent(el: { addEventListener(type: string, fn: () => void): void }, type: string, fn: () => void) {
+    el.addEventListener(type, fn);
   }
   addRibbonIcon(_icon: string, _title: string, cb: unknown) { this._ribbons.push(cb); return makeEl(); }
   addCommand(cmd: { id: string }) { this._commands.push(cmd); return cmd; }
@@ -261,3 +276,11 @@ export type SettingDefinitionRender = MockSettingDefinition;
 export function getLanguage(): string {
   return "en";
 }
+
+/** ファイルシステムのアダプタ。フルパスの組み立てにだけ使う。 */
+export class FileSystemAdapter {
+  constructor(private readonly base = "/vault") {}
+  getBasePath(): string { return this.base; }
+}
+
+export const Platform = { isMacOS: true, isWin: false, isLinux: false, isDesktopApp: true, isMobile: false };

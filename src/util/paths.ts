@@ -1,6 +1,6 @@
 /**
  * Reject path traversal and normalize to a POSIX, vault-relative path.
- * Throws on any `..` segment so a malicious/maliformed remote key can never
+ * Throws on any `..` segment so a malicious/malformed remote key can never
  * cause a write outside the vault. (Obsidian's own normalizePath is applied
  * at the adapter boundary in the LocalStore implementation.)
  */

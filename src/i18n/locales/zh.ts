@@ -3,8 +3,8 @@ import type { Strings } from "./en";
 /** 中文（简体，中国大陆）。 */
 export const zh: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync：立即同步",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync：立即同步",
   cmdSyncNow: "立即同步",
   syncAlreadyRunning: "同步已在进行中…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,
@@ -60,13 +60,6 @@ export const zh: Strings = {
   targetOnMyDrive: (path) => `我的云端硬盘 - ${path}`,
   targetMyDriveWarning: "⚠ “我的云端硬盘”（个人）中的文件不会被其他人收到。团队同步请使用共享云端硬盘中的文件夹。",
 
-  mountName: "本地文件夹",
-  mountDesc:
-    "将本仓库中的哪个文件夹作为共享仓库。其内容与同步目标文件夹的内容相对应；文件夹名本身不会出现在云端硬盘上，因此每个人都可以使用不同的名称。留空表示整个仓库。",
-  mountPlaceholder: "（整个仓库）",
-  mountMapping: (local) => `${local}/ ⇄ 同步目标文件夹`,
-  mountMappingWholeVault: "整个仓库 ⇄ 同步目标文件夹",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "同步",
   syncNowName: "立即同步",
@@ -88,6 +81,7 @@ export const zh: Strings = {
   panelChecking: "正在检查变更…",
   panelReady: "✓ 可以同步。",
   panelBlocked: "⚠ 已暂停上传。",
+  panelSyncFailed: (message) => `✗ 上次同步失败：${message}`,
   reasonNoBaseline: "此仓库尚未从 Drive 取回，而且两边都有文件。请先执行“从 Drive 取回”。",
   reasonVaultEmpty:
     "远端与本地差异很大：Drive 上仍然列出的许多文件在本地已被删除。请在下面从 Drive 删除它们，或执行“从 Drive 取回”把它们取回来。",
@@ -118,10 +112,54 @@ export const zh: Strings = {
   panelMore: (n) => `…还有 ${n} 项`,
   cloneDone: (down, conflicts, localOnly) => `clone 完成 — ↓${down}，冲突副本 ${conflicts} 个，仅本地 ${localOnly} 个`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "无法连接网络。连接恢复后会自动继续同步。要立即尝试，请点击“检查状态”。",
+  failServer: "Google Drive 暂时没有响应。稍后会自动继续同步。",
+  failAuth: "Google 登录已过期。请在设置中重新连接。",
+  failTarget: "无法打开同步文件夹。请确认它不在回收站中，并且你仍有共享云端硬盘的权限。",
+  failQuota: "Drive 空间已满，或已达到文件数量上限。请联系管理员。",
+  failDetail: (m) => `详情：${m}`,
+  btnOpenSettings: "打开设置",
+  tipOpenSettings: "打开插件设置以重新连接",
+  failRetryIn: (x) => `约 ${x} 后重试`,
+
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "正在从 Drive 导入",
+  progressScan: (n) => `正在列出文件… Drive 上 ${n} 个`,
+  progressScanLocal: (d, t) => `本地检查 ${d} / ${t}`,
+  progressFinishing: "正在收尾…",
+  progressFiles: (d, t) => `${d} / ${t} 个文件`,
+  progressRemaining: (x) => `剩余约 ${x}`,
+  durationSeconds: (n) => `${n} 秒`,
+  durationMinutes: (n) => `${n} 分钟`,
+  progressFailed: (n) => `${n} 个失败`,
+  btnCancelClone: "中止",
+  tipCancelClone: "停止导入。已下载的文件会保留，但不会记录为已同步。",
+  cloneAborted: (n) => `已中止导入，已下载的 ${n} 个文件会保留`,
+  statusBarClone: (p) => `导入中 ${p}%`,
+  statusBarScan: "导入中…",
+
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "配置文件",
+  panelIgnoreDesc:
+    "团队的忽略规则位于同步文件夹顶层的 .tds-ignore。Obsidian 不列出以点开头的文件，请用文本编辑器打开。",
+  btnOpenFile: "打开",
+  tipOpenFile: "用文本编辑器打开",
+  btnCopyPath: "复制路径",
+  tipCopyPath: "将完整路径复制到剪贴板",
+  pathCopied: (p) => `已复制：${p}`,
+  errOpenFailed: (m) => `无法打开文件：${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `此插件版本过旧（你的 ${mine}，团队 ${team}）。更新前同步已暂停。`,
+  panelVersionBehindDesc: "请通过 BRAT 更新插件。版本一致后同步将恢复。",
+  btnUpdateViaBrat: "用 BRAT 更新",
+  tipUpdateViaBrat: "运行 BRAT 的“检查更新并更新”命令",
+  errVersionBehind: (mine, team) =>
+    `此插件（${mine}）比团队版本（${team}）旧，请更新后再同步`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "仅自己的忽略规则",
-  localIgnoreBody:
-    "这里的规则只对你自己的仓库生效，本文件不会被同步。语法与 _Sync/ignore.md 相同：# 是注释，* ? ** 是通配符，开头的 / 固定到同步根目录，结尾的 / 匹配文件夹，! 取消忽略。",
   panelUnsorted: (n) => `尚未决定（${n} 项）`,
   panelLocalOnlyDesc: "Drive 没有这些文件。在你决定之前，它们留在本地，不会上传。",
   btnShare: "共享",

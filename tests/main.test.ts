@@ -4,9 +4,10 @@
  * 見ているのは「機能が正しいか」ではなく「起動して、設定画面が組み上がり、設定の
  * 読み書きが噛み合っているか」——壊れると誰も設定画面に辿り着けなくなる層である。
  */
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import GoogleDriveSyncPlugin from "../src/main";
 import { DEFAULT_SETTINGS, Settings } from "../src/settings";
+import { emptyReport } from "../src/sync/types";
 import { en, ja, setLanguage, t } from "../src/i18n";
 import type { App as ObsidianApp } from "obsidian";
 import { App, MockSettingDefinition } from "./helpers/obsidian-mock";
@@ -99,6 +100,37 @@ describe("起動", () => {
 
     expect(plugin.settings.lastSyncAt).toBeNull();
   });
+
+  it("自動同期の失敗は通知の代わりにサイドバー用に控え、成功したら消す", async () => {
+    const { plugin } = await loadPlugin();
+    Object.defineProperty(plugin.controller, "ready", { get: () => true });
+
+    plugin.controller.syncIfChanged = async () => {
+      throw new Error("Drive 503");
+    };
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    expect(plugin.syncFailure).toMatchObject({ kind: "server", message: "Drive 503" });
+
+    plugin.controller.syncIfChanged = async () => null;
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    expect(plugin.syncFailure).toBeNull();
+  });
+
+  it("サイドバーの操作が走っている間、自動同期は断られに行かない", async () => {
+    const { plugin } = await loadPlugin();
+    Object.defineProperty(plugin.controller, "ready", { get: () => true });
+    Object.defineProperty(plugin.controller, "busy", { get: () => true });
+    let called = false;
+    plugin.controller.syncIfChanged = async () => {
+      called = true;
+      return null;
+    };
+
+    await plugin.runSync({ probeFirst: true, quiet: true });
+
+    expect(called).toBe(false);
+    expect(plugin.syncFailure).toBeNull();
+  });
 });
 
 describe("設定画面", () => {
@@ -118,12 +150,11 @@ describe("設定画面", () => {
     expect(keys.filter((k) => !(k in DEFAULT_SETTINGS))).toEqual([]);
   });
 
-  it("同期先・マウント・言語の行がある", async () => {
+  it("同期先・言語の行がある", async () => {
     const { tab } = await loadPlugin();
     const names = flatten(tab.getSettingDefinitions()).map((i) => i.name);
 
     expect(names).toContain(t.targetUrlName);
-    expect(names).toContain(t.mountName);
     expect(names).toContain(t.languageName);
   });
 
@@ -160,13 +191,6 @@ describe("設定の読み書き", () => {
     expect(plugin.settings.targetUrl).toBe("https://drive.google.com/drive/folders/abc");
   });
 
-  it("マウントフォルダも同じ", async () => {
-    const { plugin, tab } = await loadPlugin();
-    await tab.setControlValue("mountFolder", " 仕事 ");
-
-    expect(plugin.settings.mountFolder).toBe("仕事");
-  });
-
   it("自動同期の入切はサイドバーから入る", async () => {
     const { plugin } = await loadPlugin();
     await plugin.setAutoSync(false);
@@ -188,9 +212,9 @@ describe("設定の読み書き", () => {
 
   it("読み戻しも同じキーで揃う", async () => {
     const { tab } = await loadPlugin();
-    await tab.setControlValue("mountFolder", " 仕事 ");
+    await tab.setControlValue("targetUrl", " https://drive.google.com/drive/folders/abc ");
 
-    expect(tab.getControlValue("mountFolder")).toBe("仕事");
+    expect(tab.getControlValue("targetUrl")).toBe("https://drive.google.com/drive/folders/abc");
   });
 });
 
@@ -290,9 +314,9 @@ describe("言語", () => {
 
 describe("保存済み設定の復元", () => {
   it("保存済みの設定が読み戻り、欠けているキーは既定値で埋まる", async () => {
-    const { plugin } = await loadPlugin({ mountFolder: "仕事", pollMinutes: 7, language: "ja" });
+    const { plugin } = await loadPlugin({ targetUrl: "https://drive.google.com/drive/folders/abc", pollMinutes: 7, language: "ja" });
 
-    expect(plugin.settings.mountFolder).toBe("仕事");
+    expect(plugin.settings.targetUrl).toBe("https://drive.google.com/drive/folders/abc");
     expect(plugin.settings.pollMinutes).toBe(7);
     expect(plugin.settings.autoSync).toBe(DEFAULT_SETTINGS.autoSync);
   });
@@ -300,5 +324,118 @@ describe("保存済み設定の復元", () => {
   it("保存済みの言語が起動時に効く", async () => {
     await loadPlugin({ language: "ja" });
     expect(t.syncHeading).toBe(ja.syncHeading);
+  });
+});
+
+describe("取り込みの進み具合", () => {
+  it("取り込みの間だけ進み具合を持ち、終わったら消す", async () => {
+    const { plugin } = await loadPlugin();
+    const seen: (string | null)[] = [];
+    plugin.onCloneProgress(() => seen.push(plugin.cloneProgress?.phase ?? null));
+    plugin.controller.clone = async (opts = {}) => {
+      opts.onProgress?.({ phase: "finish" });
+      return emptyReport();
+    };
+
+    await plugin.runClone();
+
+    expect(seen[0]).toBe("scan"); // 押した直後に、待たずに出る
+    expect(seen).toContain("finish");
+    expect(seen[seen.length - 1]).toBeNull();
+    expect(plugin.cloneProgress).toBeNull();
+    expect(plugin.cloning).toBe(false);
+  });
+
+  it("中止は取り込みに渡した signal を立てる", async () => {
+    const { plugin } = await loadPlugin();
+    let signal: AbortSignal | undefined;
+    plugin.controller.clone = async (opts = {}) => {
+      signal = opts.signal;
+      plugin.cancelClone();
+      return emptyReport();
+    };
+
+    await plugin.runClone();
+
+    expect(signal?.aborted).toBe(true);
+  });
+});
+
+describe("失敗の知らせ方と自動復帰", () => {
+  const failing = async (message: string) => {
+    const { plugin } = await loadPlugin();
+    Object.defineProperty(plugin.controller, "ready", { get: () => true });
+    plugin.controller.syncIfChanged = async () => {
+      throw new Error(message);
+    };
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    return plugin;
+  };
+
+  it("ネットワーク断は、時刻を決めて自分で拾い直す", async () => {
+    const plugin = await failing("net::ERR_INTERNET_DISCONNECTED");
+
+    expect(plugin.syncFailure?.kind).toBe("network");
+    expect(plugin.syncFailure?.retryAt).toBeGreaterThan(Date.now());
+  });
+
+  it("認証切れは自動で拾い直さない（弾かれ続けるだけ）", async () => {
+    const plugin = await failing("OAuth token 400: invalid_grant");
+
+    expect(plugin.syncFailure?.kind).toBe("auth");
+    expect(plugin.syncFailure?.retryAt).toBeNull();
+  });
+
+  it("自動の再試行は、繰り返すほど間隔が延びる", async () => {
+    const plugin = await failing("Drive list 503: busy");
+    const first = (plugin.syncFailure?.retryAt ?? 0) - Date.now();
+
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    const second = (plugin.syncFailure?.retryAt ?? 0) - Date.now();
+
+    expect(second).toBeGreaterThan(first);
+  });
+
+  it("成功すると間隔は最初に戻る", async () => {
+    const plugin = await failing("Drive list 503: busy");
+    await plugin.runSync({ probeFirst: true, quiet: true });
+
+    plugin.controller.syncIfChanged = async () => null;
+    await plugin.runSync({ probeFirst: true, quiet: true });
+    expect(plugin.syncFailure).toBeNull();
+
+    plugin.controller.syncIfChanged = async () => {
+      throw new Error("Drive list 503: busy");
+    };
+    await plugin.runSync({ probeFirst: true, quiet: true });
+
+    expect((plugin.syncFailure?.retryAt ?? 0) - Date.now()).toBeLessThanOrEqual(15_000);
+  });
+
+  it("ネットワークが戻ったら、予約を待たずに試す", async () => {
+    const plugin = await failing("net::ERR_NETWORK_CHANGED");
+    let tries = 0;
+    plugin.controller.syncIfChanged = async () => {
+      tries++;
+      return null;
+    };
+
+    window.dispatchEvent(new Event("online"));
+    await vi.waitFor(() => expect(tries).toBe(1));
+    expect(plugin.syncFailure).toBeNull();
+  });
+
+  it("直らない失敗では、ネットワークの復帰で叩き直さない", async () => {
+    const plugin = await failing("OAuth token 400: invalid_grant");
+    let tries = 0;
+    plugin.controller.syncIfChanged = async () => {
+      tries++;
+      return null;
+    };
+
+    window.dispatchEvent(new Event("online"));
+
+    expect(tries).toBe(0);
+    expect(plugin.syncFailure?.kind).toBe("auth");
   });
 });

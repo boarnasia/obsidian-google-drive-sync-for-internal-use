@@ -68,6 +68,11 @@ export class DriveProvider implements RemoteProvider {
    * 1 往復を先に払うことになる。古くなっていれば 404 で気づき、引き直す。
    */
   private readonly fileIds = new Map<string, string>();
+  /**
+   * 同期ルートの中で見たフォルダとファイルの ID。変更プローブが、ドライブ全体の
+   * 変更からルートの中のものだけを選ぶのに使う。
+   */
+  private readonly seen = new Set<string>();
 
   constructor(
     private readonly cfg: DriveConfig,
@@ -168,7 +173,9 @@ export class DriveProvider implements RemoteProvider {
   private async createFolder(name: string, parent: string): Promise<string> {
     const meta = JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parent] });
     const cr = await this.http("POST", `${API}/files?fields=id${this.allDrives("&")}`, await this.hdrs({ "content-type": "application/json" }), new TextEncoder().encode(meta).buffer);
-    return (await this.json<{ id: string }>(cr, "create-folder")).id;
+    const id = (await this.json<{ id: string }>(cr, "create-folder")).id;
+    this.seen.add(id);
+    return id;
   }
 
   /**
@@ -200,6 +207,7 @@ export class DriveProvider implements RemoteProvider {
       id = (await this.json<{ id: string }>(cr, "create")).id;
     }
     this.fileIds.set(path, id);
+    this.seen.add(id);
     const up = await this.upload(id, data, contentType);
     if (up.status === 404 && retry) {
       // キャッシュしていた ID が、他の誰かの削除や移動で使えなくなっていた。
@@ -251,9 +259,14 @@ export class DriveProvider implements RemoteProvider {
     if (res.status !== 404 && (res.status < 200 || res.status >= 300)) throw new Error(`Drive trash ${path}: ${res.status}`);
   }
 
-  async list(prefix = ""): Promise<RemoteObject[]> {
+  /** ルート自身と、`list()` の走査やこのインスタンスの書き込みで分かった中の ID。 */
+  insideIds(): Set<string> {
+    return new Set([this.root(), ...this.seen]);
+  }
+
+  async list(prefix = "", onFound?: (found: number) => void): Promise<RemoteObject[]> {
     const out: RemoteObject[] = [];
-    await this.walk(this.root(), "", out);
+    await this.walk(this.root(), "", out, onFound);
     if (!prefix) return out;
     const p = prefix.replace(/\/+$/, "");
     return out.filter((o) => o.path === p || o.path.startsWith(`${p}/`));
@@ -265,7 +278,7 @@ export class DriveProvider implements RemoteProvider {
    * サブフォルダは並列に辿る。フォルダごとに 1 往復なので、順番に待つと
    * フォルダ数がそのまま待ち時間になる。
    */
-  private async walk(folderId: string, prefix: string, out: RemoteObject[]): Promise<void> {
+  private async walk(folderId: string, prefix: string, out: RemoteObject[], onFound?: (found: number) => void): Promise<void> {
     const subfolders: { id: string; path: string }[] = [];
     let pageToken: string | undefined;
     do {
@@ -279,6 +292,7 @@ export class DriveProvider implements RemoteProvider {
       if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
       const data = await this.json<{ files?: DriveFile[]; nextPageToken?: string }>(await this.http("GET", url, await this.hdrs()), "list");
       for (const f of data.files ?? []) {
+        if (f.id) this.seen.add(f.id);
         if (!f.name) continue;
         const childPath = prefix ? `${prefix}/${f.name}` : f.name;
         if (f.mimeType === FOLDER_MIME) {
@@ -291,9 +305,10 @@ export class DriveProvider implements RemoteProvider {
           out.push({ path: childPath, version: f.md5Checksum ?? f.modifiedTime ?? "", size: Number(f.size ?? 0), mtime: msOf(f.modifiedTime) });
         }
       }
+      onFound?.(out.length);
       pageToken = data.nextPageToken;
     } while (pageToken);
 
-    await runPool(subfolders, LIST_CONCURRENCY, (sub) => this.walk(sub.id, sub.path, out));
+    await runPool(subfolders, LIST_CONCURRENCY, (sub) => this.walk(sub.id, sub.path, out, onFound));
   }
 }

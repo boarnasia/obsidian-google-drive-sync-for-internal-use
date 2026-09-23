@@ -1,6 +1,6 @@
 /*
- * PKCE (RFC 7636)。クライアントシークレットを同梱しないための仕組みなので、
- * ここが壊れるとサインインの安全性がそのまま落ちる。
+ * PKCE (RFC 7636)。横取りされた認可コードを、verifier 無しではトークンに
+ * 交換できなくする仕組みなので、ここが壊れるとサインインの安全性がそのまま落ちる。
  */
 import { describe, expect, it } from "vitest";
 import { codeChallengeS256, generateCodeVerifier } from "../../../src/providers/google/pkce";
@@ -8,21 +8,11 @@ import { codeChallengeS256, generateCodeVerifier } from "../../../src/providers/
 const BASE64URL = /^[A-Za-z0-9_-]+$/;
 
 describe("generateCodeVerifier", () => {
+  // 43 文字は RFC が許す長さ（43〜128）の下限。BASE64URL は + / = を含まないことも兼ねる。
   it("32 バイト = 43 文字の base64url を返す", () => {
     const v = generateCodeVerifier();
     expect(v).toHaveLength(43);
     expect(v).toMatch(BASE64URL);
-  });
-
-  it("RFC が許す長さ（43〜128 文字）に収まる", () => {
-    const v = generateCodeVerifier();
-    expect(v.length).toBeGreaterThanOrEqual(43);
-    expect(v.length).toBeLessThanOrEqual(128);
-  });
-
-  it("URL に載らない文字（+ / =）を含まない", () => {
-    const v = generateCodeVerifier();
-    expect(v).not.toMatch(/[+/=]/);
   });
 
   it("毎回違う値になる", () => {
@@ -32,6 +22,7 @@ describe("generateCodeVerifier", () => {
 });
 
 describe("codeChallengeS256", () => {
+  // 一方向であることの根拠もここにある。SHA-256 を使っていなければ一致しない。
   it("RFC 7636 付録 B のベクタと一致する", async () => {
     expect(await codeChallengeS256("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk")).toBe(
       "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
@@ -51,10 +42,5 @@ describe("codeChallengeS256", () => {
 
   it("verifier が違えば challenge も違う", async () => {
     expect(await codeChallengeS256("a")).not.toBe(await codeChallengeS256("b"));
-  });
-
-  it("challenge から verifier は復元できない（一方向であること）", async () => {
-    const v = generateCodeVerifier();
-    expect(await codeChallengeS256(v)).not.toBe(v);
   });
 });

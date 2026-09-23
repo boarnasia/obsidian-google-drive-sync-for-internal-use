@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const ko: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: 지금 동기화",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: 지금 동기화",
   cmdSyncNow: "지금 동기화",
   syncAlreadyRunning: "이미 동기화가 진행 중입니다…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,
@@ -64,13 +64,6 @@ export const ko: Strings = {
   targetMyDriveWarning:
     "⚠ 내 드라이브(개인)에 있는 파일은 다른 사람에게 전달되지 않습니다. 팀 동기화에는 공유 드라이브 폴더를 사용하세요.",
 
-  mountName: "로컬 폴더",
-  mountDesc:
-    "이 보관소의 어느 폴더를 공유 보관소로 쓸지 지정합니다. 그 내용이 대상 폴더의 내용과 대응됩니다. 폴더 이름 자체는 드라이브에 나타나지 않으므로 각자 다른 이름을 써도 됩니다. 비워 두면 보관소 전체입니다.",
-  mountPlaceholder: "(보관소 전체)",
-  mountMapping: (local) => `${local}/ ⇄ 대상 폴더`,
-  mountMappingWholeVault: "보관소 전체 ⇄ 대상 폴더",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "동기화",
   syncNowName: "지금 동기화",
@@ -92,6 +85,7 @@ export const ko: Strings = {
   panelChecking: "변경 사항을 확인하는 중…",
   panelReady: "✓ 동기화할 수 있습니다.",
   panelBlocked: "⚠ 업로드를 중단했습니다.",
+  panelSyncFailed: (message) => `✗ 마지막 동기화에 실패했습니다: ${message}`,
   reasonNoBaseline:
     '이 보관소는 아직 Drive에서 가져오지 않았고, 양쪽 모두에 파일이 있습니다. 먼저 "Drive에서 가져오기"를 실행하세요.',
   reasonVaultEmpty:
@@ -125,10 +119,54 @@ export const ko: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 완료 — ↓${down}, 충돌 사본 ${conflicts}건, 로컬 전용 ${localOnly}건`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "네트워크에 연결할 수 없습니다. 연결이 돌아오면 자동으로 다시 동기화합니다. 지금 시도하려면 ‘상태 확인’을 누르세요.",
+  failServer: "Google Drive가 일시적으로 응답하지 않습니다. 잠시 후 자동으로 다시 시작합니다.",
+  failAuth: "Google 인증이 만료되었습니다. 설정에서 다시 연결하세요.",
+  failTarget: "동기화 폴더를 열 수 없습니다. 휴지통에 있지 않은지, 공유 드라이브 권한이 있는지 확인하세요.",
+  failQuota: "Drive 용량 또는 파일 수 상한에 도달했습니다. 관리자에게 문의하세요.",
+  failDetail: (m) => `자세히: ${m}`,
+  btnOpenSettings: "설정 열기",
+  tipOpenSettings: "다시 연결하려면 플러그인 설정 열기",
+  failRetryIn: (x) => `약 ${x} 후에 다시 시도합니다`,
+
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Drive에서 가져오는 중",
+  progressScan: (n) => `파일 목록 확인 중… Drive ${n}개`,
+  progressScanLocal: (d, t) => `로컬 확인 ${d} / ${t}`,
+  progressFinishing: "마무리 중…",
+  progressFiles: (d, t) => `${d} / ${t}개 파일`,
+  progressRemaining: (x) => `약 ${x} 남음`,
+  durationSeconds: (n) => `${n}초`,
+  durationMinutes: (n) => `${n}분`,
+  progressFailed: (n) => `${n}개 실패`,
+  btnCancelClone: "중지",
+  tipCancelClone: "가져오기를 멈춥니다. 이미 받은 파일은 남지만 동기화된 것으로 기록하지 않습니다.",
+  cloneAborted: (n) => `가져오기를 중지했습니다. 이미 받은 파일 ${n}개는 남습니다`,
+  statusBarClone: (p) => `가져오는 중 ${p}%`,
+  statusBarScan: "가져오는 중…",
+
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "설정 파일",
+  panelIgnoreDesc:
+    "팀의 제외 규칙은 동기화 폴더 최상위의 .tds-ignore에 있습니다. Obsidian은 점으로 시작하는 파일을 표시하지 않으므로 텍스트 편집기로 여세요.",
+  btnOpenFile: "열기",
+  tipOpenFile: "텍스트 편집기로 열기",
+  btnCopyPath: "경로 복사",
+  tipCopyPath: "전체 경로를 클립보드에 복사",
+  pathCopied: (p) => `복사됨: ${p}`,
+  errOpenFailed: (m) => `파일을 열 수 없습니다: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `이 플러그인 버전이 오래되었습니다(내 버전 ${mine}, 팀 ${team}). 업데이트할 때까지 동기화를 멈춥니다.`,
+  panelVersionBehindDesc: "BRAT로 플러그인을 업데이트하세요. 버전이 맞으면 동기화가 다시 시작됩니다.",
+  btnUpdateViaBrat: "BRAT로 업데이트",
+  tipUpdateViaBrat: "BRAT의 '업데이트 확인 후 업데이트' 명령 실행",
+  errVersionBehind: (mine, team) =>
+    `이 플러그인(${mine})이 팀 버전(${team})보다 오래되어 동기화할 수 없습니다. 업데이트하세요`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "나만의 제외 규칙",
-  localIgnoreBody:
-    "여기에 쓴 규칙은 내 보관소에만 적용되며, 이 파일은 동기화되지 않습니다. 문법은 _Sync/ignore.md와 같습니다. #은 주석, * ? **는 글롭, 앞의 /는 동기화 루트 고정, 뒤의 /는 폴더, !는 해제입니다.",
   panelUnsorted: (n) => `아직 결정하지 않음 (${n}건)`,
   panelLocalOnlyDesc: "Drive에 없는 파일입니다. 결정할 때까지 여기에 남고, 올라가지 않습니다.",
   btnShare: "공유",

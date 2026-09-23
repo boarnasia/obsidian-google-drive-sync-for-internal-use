@@ -3,8 +3,8 @@ import { RelativeTimeWords } from "../../util/time";
 /** 唯一の真実。`Strings` はここから導出するので、他の辞書の漏れはビルドエラーになる。 */
 export const en = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg: string): string => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: sync now",
+  notice: (msg: string): string => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: sync now",
   cmdSyncNow: "Sync now",
   syncAlreadyRunning: "a sync is already running…",
   syncSummary: (up: number, down: number, del: number, conflicts: number): string =>
@@ -65,13 +65,6 @@ export const en = {
   targetOnMyDrive: (path: string): string => `My Drive - ${path}`,
   targetMyDriveWarning: "⚠ Files in My Drive (personal) reach nobody else. Use a shared drive folder for team sync.",
 
-  mountName: "Local folder",
-  mountDesc:
-    "Which folder of this vault is the shared vault. Its contents map onto the target folder's contents — the folder name itself never appears on Drive, so everyone can name it differently. Blank = the whole vault.",
-  mountPlaceholder: "(whole vault)",
-  mountMapping: (local: string): string => `${local}/ ⇄ the target folder`,
-  mountMappingWholeVault: "the whole vault ⇄ the target folder",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Sync",
   syncNowName: "Sync now",
@@ -94,6 +87,7 @@ export const en = {
   panelChecking: "Checking what has changed…",
   panelReady: "✓ Ready to sync.",
   panelBlocked: "⚠ Uploads are on hold.",
+  panelSyncFailed: (message: string): string => `✗ Last sync failed: ${message}`,
   reasonNoBaseline:
     'This vault has not been pulled from Drive yet, and both sides have files. Run "Pull from Drive" to bring the remote copy here first.',
   reasonVaultEmpty:
@@ -127,10 +121,54 @@ export const en = {
   cloneDone: (down: number, conflicts: number, localOnly: number): string =>
     `clone done — ↓${down}, ${conflicts} conflict copy/copies, ${localOnly} local-only file(s)`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "No network connection. Syncing resumes on its own once the connection is back. To try right now, press “Check status”.",
+  failServer: "Google Drive is not responding right now. Syncing resumes on its own shortly.",
+  failAuth: "Your Google sign-in has expired. Reconnect from the settings.",
+  failTarget: "The sync folder cannot be opened. Check that it is not in the trash and that you still have access to the shared drive.",
+  failQuota: "Drive is out of space, or the file limit was reached. Ask your administrator.",
+  failDetail: (m: string): string => `details: ${m}`,
+  btnOpenSettings: "Open settings",
+  tipOpenSettings: "Open the plugin settings to reconnect",
+  failRetryIn: (x: string): string => `retrying in about ${x}`,
+
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Importing from Drive",
+  progressScan: (n: number): string => `Listing files… ${n} on Drive`,
+  progressScanLocal: (d: number, t: number): string => `checking ${d} / ${t} here`,
+  progressFinishing: "Finishing up…",
+  progressFiles: (d: number, t: number): string => `${d} / ${t} files`,
+  progressRemaining: (x: string): string => `about ${x} left`,
+  durationSeconds: (n: number): string => `${n} s`,
+  durationMinutes: (n: number): string => `${n} min`,
+  progressFailed: (n: number): string => `${n} failed`,
+  btnCancelClone: "Cancel",
+  tipCancelClone: "Stop importing. Files already downloaded stay; nothing is recorded as synced.",
+  cloneAborted: (n: number): string => `import cancelled — ${n} file(s) already downloaded stay here`,
+  statusBarClone: (p: number): string => `Importing ${p}%`,
+  statusBarScan: "Importing…",
+
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Config files",
+  panelIgnoreDesc:
+    "The team's ignore rules live in .tds-ignore at the top of the synced folder. Obsidian does not list dot files, so open it in a text editor.",
+  btnOpenFile: "Open",
+  tipOpenFile: "Open in your text editor",
+  btnCopyPath: "Copy path",
+  tipCopyPath: "Copy the full path to the clipboard",
+  pathCopied: (p: string): string => `copied: ${p}`,
+  errOpenFailed: (m: string): string => `could not open the file: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine: string, team: string): string =>
+    `This plugin is out of date (yours ${mine}, team ${team}). Sync is paused until you update.`,
+  panelVersionBehindDesc: "Update the plugin with BRAT. Sync resumes as soon as the versions match.",
+  btnUpdateViaBrat: "Update with BRAT",
+  tipUpdateViaBrat: "Run BRAT's check-for-updates-and-update command",
+  errVersionBehind: (mine: string, team: string): string =>
+    `this plugin (${mine}) is older than the team's (${team}); update it to sync`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Your own ignore rules",
-  localIgnoreBody:
-    "Rules here apply only to your own vault; this file is never synced. Same syntax as _Sync/ignore.md: # is a comment, * ? ** are globs, a leading / anchors to the sync root, a trailing / matches folders, ! un-ignores.",
   panelUnsorted: (n: number): string => `Not decided yet (${n})`,
   panelLocalOnlyDesc: "Drive does not have these files. Each one stays here, unsent, until you decide.",
   btnShare: "Share",

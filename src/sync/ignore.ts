@@ -1,5 +1,7 @@
+import { TEAM_IGNORE_PATH, VERSION_PATH } from "./configFiles";
+
 /**
- * 除外規則（ADR-0006）。`.gitignore` の部分集合を、Markdown のファイルから読む。
+ * 除外規則（ADR-0006, ADR-0007）。`.gitignore` の部分集合を、`.tds-ignore` から読む。
  *
  * 除外は「同期の対象外にする」であって「削除する」ではない。すでに同期されている
  * ファイルが後から規則に載っても、ローカルもリモートも消さず、ベースラインから
@@ -7,11 +9,15 @@
  * ファイルが消える、という挙動を避けるためである。
  */
 
-/** 常に同期しないパス。利用者の規則では上書きできない。 */
-export const ALWAYS_IGNORED = ["_SyncLocal"];
+/**
+ * 常に同期しないパス。利用者の規則では上書きできない。`.tds-version` は同期の前に
+ * Drive を直接読み書きする。普通のファイルとして扱うと、古い版の手元の写しが
+ * 新しい版の目印を上書きしうる。
+ */
+export const ALWAYS_IGNORED = [VERSION_PATH];
 
 /** 除外できないパス。ここを外すとチームのルールが配られなくなる。 */
-export const NEVER_IGNORED = ["_Sync/ignore.md"];
+export const NEVER_IGNORED = [TEAM_IGNORE_PATH];
 
 interface Rule {
   test: RegExp;
@@ -24,17 +30,14 @@ interface Rule {
 /**
  * 行の集まりから規則を組み立てる。
  *
- * `#` で始まる行はコメント（Markdown の見出しもこれに当たる）。空行は無視する。
- * 設定ファイルは Markdown なので、コードブロックの柵（```）も規則とは見なさない。
+ * `#` で始まる行はコメント。空行は無視する。
  */
 export function parseIgnore(text: string): Rule[] {
   const rules: Rule[] = [];
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
-    if (!line || line.startsWith("#") || line.startsWith("```")) continue;
-    // 箇条書きで書かれていても読む。Markdown として自然に書くとこうなる。
-    const body = line.replace(/^[-*+]\s+/, "");
-    const rule = compile(body);
+    if (!line || line.startsWith("#")) continue;
+    const rule = compile(line);
     if (rule) rules.push(rule);
   }
   return rules;
@@ -85,8 +88,9 @@ function globToRegex(glob: string): string {
 /**
  * 同期ルート相対のパスを、除外するかどうか。
  *
- * 後の規則ほど強い（`.gitignore` と同じ）。フォルダに一致した規則は、その下の
- * すべてに及ぶ。
+ * 後の規則ほど強い。上の階層のフォルダから順に判定し、除外されたフォルダがあれば
+ * その下はすべて除外する。`.gitignore` と同じく、除外したフォルダの中身を `!` で
+ * 戻すことはできない。
  */
 export function isIgnored(path: string, rules: Rule[]): boolean {
   if (NEVER_IGNORED.includes(path)) return false;
@@ -95,24 +99,21 @@ export function isIgnored(path: string, rules: Rule[]): boolean {
   }
 
   const segments = path.split("/");
-  // 自分自身と、すべての祖先フォルダを見る。祖先が除外されていれば中身も除外される。
-  const candidates: { path: string; isDir: boolean }[] = segments.map((_, i) => ({
-    path: segments.slice(0, i + 1).join("/"),
-    isDir: i < segments.length - 1,
-  }));
-
-  let ignored = false;
-  for (const rule of rules) {
-    for (const c of candidates) {
-      if (rule.dirOnly && !c.isDir) continue;
-      if (rule.test.test(c.path)) ignored = !rule.negate;
+  for (let i = 0; i < segments.length; i++) {
+    const current = segments.slice(0, i + 1).join("/");
+    const isDir = i < segments.length - 1;
+    let ignored = false;
+    for (const rule of rules) {
+      if (rule.dirOnly && !isDir) continue;
+      if (rule.test.test(current)) ignored = !rule.negate;
     }
+    if (ignored) return true;
   }
-  return ignored;
+  return false;
 }
 
-/** 規則をひとつの判定関数にまとめる。チームの規則と各自の規則は、この順で重ねる。 */
-export function ignoreMatcher(...texts: (string | null | undefined)[]): (path: string) => boolean {
-  const rules = texts.flatMap((text) => (text ? parseIgnore(text) : []));
+/** 規則をひとつの判定関数にまとめる。規則のファイルが無ければ、何も除外しない。 */
+export function ignoreMatcher(text: string | null | undefined): (path: string) => boolean {
+  const rules = text ? parseIgnore(text) : [];
   return (path) => isIgnored(path, rules);
 }

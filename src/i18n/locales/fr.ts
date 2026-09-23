@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const fr: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync : ${msg}`,
-  ribbonSyncNow: "Google Drive Sync : synchroniser maintenant",
+  notice: (msg) => `Team Drive Sync : ${msg}`,
+  ribbonSyncNow: "Team Drive Sync : synchroniser maintenant",
   cmdSyncNow: "Synchroniser maintenant",
   syncAlreadyRunning: "une synchronisation est déjà en cours…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,
@@ -64,13 +64,6 @@ export const fr: Strings = {
   targetMyDriveWarning:
     "⚠ Les fichiers de Mon Drive (personnel) ne parviennent à personne d’autre. Utilisez un dossier d’un Drive partagé pour synchroniser en équipe.",
 
-  mountName: "Dossier local",
-  mountDesc:
-    "Le dossier de ce coffre qui sert de coffre partagé. Son contenu correspond à celui du dossier cible ; le nom du dossier n’apparaît jamais sur Drive, chacun peut donc le nommer différemment. Vide = tout le coffre.",
-  mountPlaceholder: "(tout le coffre)",
-  mountMapping: (local) => `${local}/ ⇄ le dossier cible`,
-  mountMappingWholeVault: "tout le coffre ⇄ le dossier cible",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Synchronisation",
   syncNowName: "Synchroniser maintenant",
@@ -93,6 +86,7 @@ export const fr: Strings = {
   panelChecking: "Vérification des changements…",
   panelReady: "✓ Prêt à synchroniser.",
   panelBlocked: "⚠ Les envois sont suspendus.",
+  panelSyncFailed: (message) => `✗ La dernière synchronisation a échoué : ${message}`,
   reasonNoBaseline:
     "Ce coffre n’a pas encore été récupéré depuis Drive et les deux côtés contiennent des fichiers. Lancez d’abord « Récupérer depuis Drive ».",
   reasonVaultEmpty:
@@ -126,10 +120,54 @@ export const fr: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminé — ↓${down}, ${conflicts} copie(s) de conflit, ${localOnly} fichier(s) local uniquement`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "Pas de connexion réseau. La synchronisation reprend d’elle-même dès le retour de la connexion. Pour essayer tout de suite, appuyez sur « Vérifier l’état ».",
+  failServer: "Google Drive ne répond pas pour le moment. La synchronisation reprend d’elle-même sous peu.",
+  failAuth: "Votre connexion Google a expiré. Reconnectez-vous depuis les paramètres.",
+  failTarget: "Impossible d’ouvrir le dossier synchronisé. Vérifiez qu’il n’est pas à la corbeille et que vous avez toujours accès au Drive partagé.",
+  failQuota: "Drive n’a plus d’espace, ou la limite de fichiers est atteinte. Contactez votre administrateur.",
+  failDetail: (m) => `détails : ${m}`,
+  btnOpenSettings: "Ouvrir les paramètres",
+  tipOpenSettings: "Ouvrir les paramètres du plugin pour se reconnecter",
+  failRetryIn: (x) => `nouvelle tentative dans environ ${x}`,
+
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Importation depuis Drive",
+  progressScan: (n) => `Liste des fichiers… ${n} sur Drive`,
+  progressScanLocal: (d, t) => `vérification locale ${d} / ${t}`,
+  progressFinishing: "Finalisation…",
+  progressFiles: (d, t) => `${d} / ${t} fichiers`,
+  progressRemaining: (x) => `environ ${x} restant`,
+  durationSeconds: (n) => `${n} s`,
+  durationMinutes: (n) => `${n} min`,
+  progressFailed: (n) => `${n} en échec`,
+  btnCancelClone: "Annuler",
+  tipCancelClone: "Arrête l’importation. Les fichiers déjà téléchargés restent ; rien n’est enregistré comme synchronisé.",
+  cloneAborted: (n) => `importation annulée — les ${n} fichiers déjà téléchargés restent ici`,
+  statusBarClone: (p) => `Importation ${p} %`,
+  statusBarScan: "Importation…",
+
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Fichiers de configuration",
+  panelIgnoreDesc:
+    "Les règles d’exclusion de l’équipe sont dans .tds-ignore, à la racine du dossier synchronisé. Obsidian n’affiche pas les fichiers commençant par un point : ouvrez-le dans un éditeur de texte.",
+  btnOpenFile: "Ouvrir",
+  tipOpenFile: "Ouvrir dans votre éditeur de texte",
+  btnCopyPath: "Copier le chemin",
+  tipCopyPath: "Copier le chemin complet dans le presse-papiers",
+  pathCopied: (p) => `copié : ${p}`,
+  errOpenFailed: (m) => `impossible d’ouvrir le fichier : ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `Ce plugin n’est pas à jour (le vôtre ${mine}, celui de l’équipe ${team}). La synchronisation est suspendue jusqu’à la mise à jour.`,
+  panelVersionBehindDesc: "Mettez le plugin à jour avec BRAT. La synchronisation reprend dès que les versions concordent.",
+  btnUpdateViaBrat: "Mettre à jour avec BRAT",
+  tipUpdateViaBrat: "Lancer la commande BRAT de recherche et d’installation des mises à jour",
+  errVersionBehind: (mine, team) =>
+    `ce plugin (${mine}) est plus ancien que celui de l’équipe (${team}) ; mettez-le à jour pour synchroniser`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Vos propres règles d’exclusion",
-  localIgnoreBody:
-    "Les règles écrites ici ne valent que pour votre coffre ; ce fichier n’est jamais synchronisé. Même syntaxe que _Sync/ignore.md : # pour un commentaire, * ? ** comme jokers, un / initial ancre à la racine de synchronisation, un / final vise les dossiers, ! annule une exclusion.",
   panelUnsorted: (n) => `Pas encore décidé (${n})`,
   panelLocalOnlyDesc: "Drive n’a pas ces fichiers. Chacun reste ici, non envoyé, tant que vous n’avez pas décidé.",
   btnShare: "Partager",

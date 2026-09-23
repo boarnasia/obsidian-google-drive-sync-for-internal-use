@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const ja: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: 今すぐ同期",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: 今すぐ同期",
   cmdSyncNow: "今すぐ同期",
   syncAlreadyRunning: "同期がすでに実行中です…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,
@@ -64,13 +64,6 @@ export const ja: Strings = {
   targetMyDriveWarning:
     "⚠ マイドライブ（個人）に置いても他の誰にも届きません。チームで使うなら共有ドライブのフォルダを指定してください。",
 
-  mountName: "ローカルのフォルダ",
-  mountDesc:
-    "この Vault のどのフォルダを共有Vault にするか。その中身が同期先フォルダの中身に対応します。フォルダ名自体は Drive 上に現れないので、各自が別の名前を付けて構いません。空欄なら Vault 全体。",
-  mountPlaceholder: "（Vault 全体）",
-  mountMapping: (local) => `${local}/ ⇄ 同期先フォルダ`,
-  mountMappingWholeVault: "Vault 全体 ⇄ 同期先フォルダ",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "同期",
   syncNowName: "今すぐ同期",
@@ -92,6 +85,7 @@ export const ja: Strings = {
   panelChecking: "変更を確認しています…",
   panelReady: "✓ 同期できます。",
   panelBlocked: "⚠ アップロードを停止中です。",
+  panelSyncFailed: (message) => `✗ 前回の同期に失敗しました: ${message}`,
   reasonNoBaseline:
     "この Vault はまだ Drive から取り込んでいません。両側にファイルがあるので、先に「Drive から取り込む」を実行してください。",
   reasonVaultEmpty:
@@ -125,10 +119,54 @@ export const ja: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone 完了 — ↓${down}、競合コピー ${conflicts} 件、ローカル固有 ${localOnly} 件`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "ネットワークに接続できません。接続が戻ると自動で再開します。すぐ試すには「状態を確認」を押してください。",
+  failServer: "Google Drive が一時的に応答していません。しばらくすると自動で再開します。",
+  failAuth: "Google の認証が切れました。設定から再接続してください。",
+  failTarget: "同期先のフォルダを開けません。ゴミ箱に入っていないか、共有ドライブの権限があるかを確かめてください。",
+  failQuota: "Drive の容量、またはファイル数の上限に達しました。管理者に連絡してください。",
+  failDetail: (m) => `詳細: ${m}`,
+  btnOpenSettings: "設定を開く",
+  tipOpenSettings: "再接続するために設定を開く",
+  failRetryIn: (x) => `約 ${x} 後に再試行します`,
+
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Drive から取り込み中",
+  progressScan: (n) => `一覧を取得中… Drive ${n} 件`,
+  progressScanLocal: (d, t) => `ローカル確認 ${d} / ${t}`,
+  progressFinishing: "仕上げ中…",
+  progressFiles: (d, t) => `${d} / ${t} 件`,
+  progressRemaining: (x) => `残り約 ${x}`,
+  durationSeconds: (n) => `${n} 秒`,
+  durationMinutes: (n) => `${n} 分`,
+  progressFailed: (n) => `失敗 ${n} 件`,
+  btnCancelClone: "中止",
+  tipCancelClone: "取り込みを止めます。降りたファイルは残り、同期済みとしては記録しません。",
+  cloneAborted: (n) => `取り込みを中止しました。降りたファイル ${n} 件は残ります`,
+  statusBarClone: (p) => `取り込み中 ${p}%`,
+  statusBarScan: "取り込み中…",
+
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "設定ファイル",
+  panelIgnoreDesc:
+    "チームの除外規則は、同期フォルダ直下の .tds-ignore にあります。Obsidian はドットで始まるファイルを一覧に出さないので、テキストエディタで開いてください。",
+  btnOpenFile: "開く",
+  tipOpenFile: "テキストエディタで開く",
+  btnCopyPath: "パスをコピー",
+  tipCopyPath: "フルパスをクリップボードにコピー",
+  pathCopied: (p) => `コピーしました: ${p}`,
+  errOpenFailed: (m) => `ファイルを開けませんでした: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `このプラグインの版が古くなっています（自分 ${mine}、チーム ${team}）。更新するまで同期を止めています。`,
+  panelVersionBehindDesc: "BRAT でプラグインを更新してください。版が揃えば同期は再開します。",
+  btnUpdateViaBrat: "BRAT で更新",
+  tipUpdateViaBrat: "BRAT の「更新を確認して更新」コマンドを実行",
+  errVersionBehind: (mine, team) =>
+    `このプラグイン（${mine}）はチームの版（${team}）より古いため同期できません。更新してください`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "自分だけの除外規則",
-  localIgnoreBody:
-    "ここに書いた規則は自分の Vault にだけ効きます。このファイルは同期されません。書式は _Sync/ignore.md と同じです。# はコメント、* ? ** はグロブ、先頭の / は同期ルート固定、末尾の / はフォルダ、! は打ち消しです。",
   panelUnsorted: (n) => `未決定（${n} 件）`,
   panelLocalOnlyDesc: "Drive に無いファイルです。決めるまで、ここに留まり、上がりません。",
   btnShare: "共有",

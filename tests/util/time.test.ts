@@ -1,5 +1,5 @@
 /*
- * relativeTime() — 設定画面の「最終同期」表示。純粋な表示用ヘルパであり、
+ * relativeTime() — 同期管理サイドバーの「最終同期」「最終計算時刻」の表示。純粋な表示用ヘルパであり、
  * 同期や削除の判断には一切効かない（正しさはベースラインが担う）。
  */
 import { describe, expect, it } from "vitest";
@@ -32,6 +32,11 @@ describe("relativeTime（既定の英語）", () => {
     expect(ago(45 * S)).toBe("1 minute ago");
     expect(ago(59 * M + 30 * S)).toBe("1 hour ago");
     expect(ago(23 * H + 40 * M)).toBe("1 day ago");
+  });
+
+  it("丸めを重ねて繰り上げない（各単位を経過時間から直接丸める）", () => {
+    expect(ago(1 * H + 29 * M + 30 * S)).toBe("1 hour ago"); // 1.49 時間
+    expect(ago(1 * D + 11 * H + 40 * M)).toBe("1 day ago"); // 1.49 日
   });
 
   it("未来の時刻でも負の数を出さない", () => {

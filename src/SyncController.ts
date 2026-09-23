@@ -1,25 +1,19 @@
 import { App } from "obsidian";
 import { DriveProvider } from "./providers/drive/DriveProvider";
-import { getStartToken, hasChanges } from "./providers/drive/ChangeProbe";
+import { getStartToken, probeChanges } from "./providers/drive/ChangeProbe";
 import { resolveDriveTarget } from "./providers/drive/DriveTarget";
 import { TokenSet, refreshAccessToken } from "./providers/google/oauth";
 import { googleLoginLoopback } from "./obsidian/googleLogin";
 import { HttpSend } from "./providers/RemoteProvider";
 import { SyncEngine } from "./sync/SyncEngine";
-import { SyncPlan, SyncReport, SyncStateData } from "./sync/types";
+import { CloneOptions, SyncPlan, SyncReport, SyncStateData } from "./sync/types";
 import { ObsidianLocalStore } from "./obsidian/ObsidianLocalStore";
 import { requestUrlHttp } from "./obsidian/requestUrlHttp";
 import { withRetry } from "./util/retry";
 import { DriveTarget, Settings } from "./settings";
 import { ignoreMatcher } from "./sync/ignore";
-import {
-  LOCAL_IGNORE_PATH,
-  TEAM_IGNORE_PATH,
-  TEAM_IGNORE_TEMPLATE,
-  TEAM_README_PATH,
-  TEAM_README_TEMPLATE,
-  localIgnoreTemplate,
-} from "./sync/configFiles";
+import { TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE, VERSION_PATH } from "./sync/configFiles";
+import { compareVersions } from "./util/version";
 import { t } from "./i18n";
 
 /**
@@ -29,8 +23,14 @@ import { t } from "./i18n";
  */
 const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive";
 
-function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
-  return local.write(path, new TextEncoder().encode(body).buffer);
+async function writeText(local: ObsidianLocalStore, path: string, body: string): Promise<void> {
+  await local.write(path, new TextEncoder().encode(body).buffer);
+}
+
+/** 自分の版がチームの版より古い。揃うまで同期しない（ADR-0007）。 */
+export interface VersionGap {
+  mine: string;
+  team: string;
 }
 
 /**
@@ -49,12 +49,35 @@ export class SyncController {
    * ポーリング・ファイル監視と複数あるので、入口ではなくここで一本化する。
    */
   private running = false;
+  /**
+   * 実行中の操作が書こうとしている Vault 相対パス。
+   *
+   * Vault API 経由で書く以上、自分の書き込みも modify / create / delete を発火する。
+   * これを変更として数えると、ダウンロードが次の同期を呼ぶ。Obsidian はイベントを
+   * 書き込みの完了前に発火するので、書く直前に控える。操作が終わった時点で残って
+   * いるものはもうイベントが来ないので捨てる——残すと、利用者の次の編集を吸い込む。
+   */
+  private readonly ownWrites = new Set<string>();
+  /** 直近の同期が止まったか。止まっている間は、ローカルの差分だけでは同期し直さない。 */
+  private lastBlocked = false;
+  /**
+   * 同期ルートごとの、直前の走査で分かった中の ID。変更プローブがルートの外の変更を
+   * 読み飛ばすのに使う。保存はしない——起動後の最初の確認は判断できずに同期するが、
+   * その走査でまた分かる。
+   */
+  private readonly insideIds = new Map<string, Set<string>>();
+  /** 直近に Drive の `.tds-version` を読んだ結果。古ければサイドバーが更新を案内する。 */
+  versionGap: VersionGap | null = null;
 
+  /**
+   * @param version このプラグインの版（manifest の version）。
+   */
   constructor(
     private readonly app: App,
     private readonly settings: Settings,
     private readonly persist: () => Promise<void>,
-    http?: HttpSend
+    http?: HttpSend,
+    private readonly version = "0.0.0"
   ) {
     this.http = http ?? withRetry(requestUrlHttp);
   }
@@ -86,7 +109,18 @@ export class SyncController {
       return await run();
     } finally {
       this.running = false;
+      this.ownWrites.clear();
     }
+  }
+
+  /** ベースラインを書き換える操作が走っているか。 */
+  get busy(): boolean {
+    return this.running;
+  }
+
+  /** このパスの変更イベントが、実行中の操作自身の書き込みによるものなら true（一度きり）。 */
+  consumeOwnWrite(path: string): boolean {
+    return this.ownWrites.delete(path);
   }
 
   private requireTarget(): DriveTarget {
@@ -150,16 +184,26 @@ export class SyncController {
   // ------------------------------------------------------------------ 同期
 
   /**
-   * ポーリング用。リモートに変更が無ければ何もせず null を返す。
+   * ポーリング用。ローカルにもリモートにも変更が無ければ何もせず null を返す。
    *
-   * プローブが見ているのはリモートだけなので、ローカルの変更を起点とする同期は
-   * この経路を通してはいけない（ADR-0002）。
+   * ローカルを先に見る。変更イベントを取りこぼしたローカルの編集は、ここで拾わないと
+   * リモートに変更が来るまで上がらない。直近の同期が止まっているなら、同期し直しても
+   * また止まるだけなので、リモートの変更だけを待つ（抜け道はサイドバーにある）。
    */
-  async syncIfRemoteChanged(): Promise<SyncReport | null> {
+  async syncIfChanged(): Promise<SyncReport | null> {
     const target = this.requireTarget();
-    const saved = this.settings.changeToken[target.folderId] ?? "";
-    if (saved && !(await hasChanges(this.http, () => this.getToken(), target.driveId, saved))) return null;
-    return this.sync();
+    if (!this.lastBlocked && (await this.hasLocalChanges(target))) return this.sync();
+    const key = target.folderId;
+    const saved = this.settings.changeToken[key] ?? "";
+    const probe = await probeChanges(this.http, () => this.getToken(), target.driveId, saved, this.insideIds.get(key) ?? null);
+    if (probe.changed) return this.sync();
+    // ルートの外の変更だけなら起点を進める。進めないと、同じ変更を毎回読み直す。
+    // 同期が走っているなら、その同期が起点を書くので触らない。
+    if (probe.nextToken && probe.nextToken !== saved && !this.running) {
+      this.settings.changeToken[key] = probe.nextToken;
+      await this.persist();
+    }
+    return null;
   }
 
   /** 手動、およびローカルの変更を起点とする同期。必ず走る。 */
@@ -169,12 +213,16 @@ export class SyncController {
 
   private async syncNow(opts: { approvedDeletes?: ReadonlySet<string> }): Promise<SyncReport> {
     const target = this.requireTarget();
+    const remote = this.remoteFor(target);
+    await this.checkVersion(remote, { write: true });
 
     // 起点は走査の *前* に取る。後から取ると、走査中に入った変更を見落とす。
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await (await this.engineFor(target)).sync(this.settings.syncState[key] ?? {}, opts);
+    const { state, report } = await (await this.engineFor(target, remote)).sync(this.settings.syncState[key] ?? {}, opts);
+    this.insideIds.set(key, remote.insideIds());
+    this.lastBlocked = report.blocked.length > 0;
     // 上がった、あるいは消えたファイルは、もう分類の対象ではない。
     const stillLocalOnly = new Set(report.localOnly);
     this.settings.unsorted[key] = this.unsortedOf(key).filter((path) => stillLocalOnly.has(path));
@@ -188,34 +236,67 @@ export class SyncController {
    * 初回接続と、状態が壊れたときの復旧の両方がここを通る。ローカルにしか無い
    * ファイルは消さず、報告に載せて呼び出し側が分類できるようにする。
    */
-  clone(): Promise<SyncReport> {
-    return this.exclusive(() => this.cloneNow());
+  clone(opts: CloneOptions = {}): Promise<SyncReport> {
+    return this.exclusive(() => this.cloneNow(opts));
   }
 
-  private async cloneNow(): Promise<SyncReport> {
+  private async cloneNow(opts: CloneOptions): Promise<SyncReport> {
     const target = this.requireTarget();
+    const remote = this.remoteFor(target);
+    await this.checkVersion(remote, { write: true });
     const freshToken = await getStartToken(this.http, () => this.getToken(), target.driveId);
 
     const key = target.folderId;
-    const { state, report } = await (await this.engineFor(target)).clone(this.settings.syncState[key] ?? {});
+    const engine = await this.engineFor(target, remote);
+    const { state, report, aborted } = await engine.clone(this.settings.syncState[key] ?? {}, opts);
+    this.insideIds.set(key, remote.insideIds());
+    if (aborted) {
+      // ベースラインは書かない。書くと、まだ降りていないファイルがリモートで消えたと
+      // 読まれる。途中で作った競合コピーだけは未整理に入れ、勝手に上がらないようにする。
+      const copies = report.conflicts.map((c) => c.conflictPath);
+      this.settings.unsorted[key] = [...new Set([...this.unsortedOf(key), ...copies])];
+      await this.persist();
+      throw new Error(t.cloneAborted(report.downloaded.length));
+    }
+    opts.onProgress?.({ phase: "finish" });
+    this.lastBlocked = false;
     // 取り込みは両側を数え直すので、未整理も持ち越さずに作り直す。
     this.settings.unsorted[key] = [...report.localOnly];
     await this.commit(key, state, freshToken);
-    // 設定ファイルは clone の後に、無いものだけ作る。前に作ると、自分で作ったファイルが
+    // 除外規則は clone の後に、無ければ作る。前に作ると、自分で作ったファイルが
     // 自分のローカル固有ファイルとして並ぶ。
-    await this.ensureConfigFiles(this.store());
+    await this.ensureIgnoreFile();
     return report;
   }
 
-  private async ensureConfigFiles(local: ObsidianLocalStore): Promise<void> {
-    const files: [string, string][] = [
-      [TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE],
-      [TEAM_README_PATH, TEAM_README_TEMPLATE],
-      [LOCAL_IGNORE_PATH, localIgnoreTemplate({ title: t.localIgnoreTitle, body: t.localIgnoreBody })],
-    ];
-    for (const [path, body] of files) {
-      if ((await local.readText(path)) === null) await writeText(local, path, body);
+  /** `.tds-ignore` が無ければ雛形で作る。サイドバーの「開く」からも呼ぶ。 */
+  async ensureIgnoreFile(): Promise<void> {
+    const local = this.store();
+    if ((await local.readText(TEAM_IGNORE_PATH)) === null) await writeText(local, TEAM_IGNORE_PATH, TEAM_IGNORE_TEMPLATE);
+  }
+
+  // ------------------------------------------------------------ 版の目印
+
+  /**
+   * Drive の `.tds-version` と自分の版を突き合わせる（ADR-0007）。
+   *
+   * 自分の方が古ければ止める。同期の規則は版ごとに変わりうるので、古い版と新しい版が
+   * 同じフォルダに書き込むと、同じファイルの二重作成や消したはずのファイルの復活が
+   * 起きうる。新しければ目印を自分の版に上げ、以後それより古い版を止める。
+   *
+   * @param opts.write 目印を作る・上げるか。数えるだけの plan() では書かない。
+   */
+  private async checkVersion(remote: DriveProvider, opts: { write: boolean }): Promise<void> {
+    const data = await remote.get(VERSION_PATH);
+    const team = data ? new TextDecoder().decode(data).trim() : null;
+    const order = team === null ? null : compareVersions(this.version, team);
+    if (order !== null && order < 0 && team !== null) {
+      this.versionGap = { mine: this.version, team };
+      throw new Error(t.errVersionBehind(this.version, team));
     }
+    this.versionGap = null;
+    // 読めない目印は、無いものとして自分の版で書き直す。
+    if (opts.write && order !== 0) await remote.put(VERSION_PATH, new TextEncoder().encode(`${this.version}\n`).buffer, "text/plain");
   }
 
   // -------------------------------------------------- ローカル固有ファイルの分類
@@ -274,25 +355,35 @@ export class SyncController {
   /** 適用せずに、今の同期が何をするかを数える。サイドバーの表示に使う。 */
   async plan(): Promise<SyncPlan> {
     const target = this.requireTarget();
-    return (await this.engineFor(target)).plan(this.settings.syncState[target.folderId] ?? {});
+    const remote = this.remoteFor(target);
+    await this.checkVersion(remote, { write: false });
+    return (await this.engineFor(target, remote)).plan(this.settings.syncState[target.folderId] ?? {});
+  }
+
+  private async hasLocalChanges(target: DriveTarget): Promise<boolean> {
+    return (await this.engineFor(target)).hasLocalChanges(this.settings.syncState[target.folderId] ?? {});
   }
 
   private store(): ObsidianLocalStore {
-    return new ObsidianLocalStore(this.app, this.settings.mountFolder);
+    return new ObsidianLocalStore(this.app, (path) => this.ownWrites.add(path));
   }
 
-  private async engineFor(target: DriveTarget): Promise<SyncEngine> {
+  private remoteFor(target: DriveTarget): DriveProvider {
+    return new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http);
+  }
+
+  private async engineFor(target: DriveTarget, remote: DriveProvider = this.remoteFor(target)): Promise<SyncEngine> {
     const local = this.store();
-    const [team, mine] = await Promise.all([local.readText(TEAM_IGNORE_PATH), local.readText(LOCAL_IGNORE_PATH)]);
+    const team = await local.readText(TEAM_IGNORE_PATH);
     // 未整理のものだけを止める。分類し終えたファイルは、もうこの集合に居ない。
     const held = new Set(this.unsortedOf(target.folderId));
     return new SyncEngine(
       local,
-      new DriveProvider({ folderId: target.folderId, driveId: target.driveId }, () => this.getToken(), this.http),
+      remote,
       () => new Date(),
       undefined,
       undefined,
-      ignoreMatcher(team, mine),
+      ignoreMatcher(team),
       held
     );
   }

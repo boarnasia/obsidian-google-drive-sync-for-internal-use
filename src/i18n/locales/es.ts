@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const es: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: sincronizar ahora",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: sincronizar ahora",
   cmdSyncNow: "Sincronizar ahora",
   syncAlreadyRunning: "ya hay una sincronización en curso…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,
@@ -64,13 +64,6 @@ export const es: Strings = {
   targetMyDriveWarning:
     "⚠ Los archivos de Mi unidad (personal) no llegan a nadie más. Usa una carpeta de una unidad compartida para sincronizar en equipo.",
 
-  mountName: "Carpeta local",
-  mountDesc:
-    "Qué carpeta de esta bóveda es la bóveda compartida. Su contenido se corresponde con el de la carpeta de destino; el nombre de la carpeta no aparece en Drive, así que cada persona puede llamarla distinto. Vacío = toda la bóveda.",
-  mountPlaceholder: "(toda la bóveda)",
-  mountMapping: (local) => `${local}/ ⇄ la carpeta de destino`,
-  mountMappingWholeVault: "toda la bóveda ⇄ la carpeta de destino",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Sincronización",
   syncNowName: "Sincronizar ahora",
@@ -93,6 +86,7 @@ export const es: Strings = {
   panelChecking: "Comprobando qué ha cambiado…",
   panelReady: "✓ Listo para sincronizar.",
   panelBlocked: "⚠ Las subidas están en pausa.",
+  panelSyncFailed: (message) => `✗ La última sincronización falló: ${message}`,
   reasonNoBaseline:
     "Esta bóveda todavía no se ha traído desde Drive y hay archivos en ambos lados. Ejecuta «Traer desde Drive» primero.",
   reasonVaultEmpty:
@@ -126,10 +120,54 @@ export const es: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone terminado — ↓${down}, ${conflicts} copia(s) de conflicto, ${localOnly} archivo(s) solo local`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "Sin conexión a la red. La sincronización se reanuda sola cuando vuelva la conexión. Para probar ahora, pulsa «Comprobar estado».",
+  failServer: "Google Drive no responde en este momento. La sincronización se reanuda sola en breve.",
+  failAuth: "Tu sesión de Google ha caducado. Vuelve a conectarte desde los ajustes.",
+  failTarget: "No se puede abrir la carpeta de sincronización. Comprueba que no esté en la papelera y que sigas teniendo acceso a la unidad compartida.",
+  failQuota: "Drive se quedó sin espacio o se alcanzó el límite de archivos. Avisa a tu administrador.",
+  failDetail: (m) => `detalles: ${m}`,
+  btnOpenSettings: "Abrir ajustes",
+  tipOpenSettings: "Abrir los ajustes del plugin para volver a conectar",
+  failRetryIn: (x) => `reintento en unos ${x}`,
+
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Importando desde Drive",
+  progressScan: (n) => `Listando archivos… ${n} en Drive`,
+  progressScanLocal: (d, t) => `comprobando ${d} / ${t} aquí`,
+  progressFinishing: "Terminando…",
+  progressFiles: (d, t) => `${d} / ${t} archivos`,
+  progressRemaining: (x) => `quedan unos ${x}`,
+  durationSeconds: (n) => `${n} s`,
+  durationMinutes: (n) => `${n} min`,
+  progressFailed: (n) => `${n} fallidos`,
+  btnCancelClone: "Cancelar",
+  tipCancelClone: "Detiene la importación. Los archivos ya descargados se quedan; no se registra nada como sincronizado.",
+  cloneAborted: (n) => `importación cancelada: los ${n} archivos ya descargados se quedan aquí`,
+  statusBarClone: (p) => `Importando ${p}%`,
+  statusBarScan: "Importando…",
+
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Archivos de configuración",
+  panelIgnoreDesc:
+    "Las reglas de exclusión del equipo están en .tds-ignore, en la raíz de la carpeta sincronizada. Obsidian no muestra los archivos que empiezan por punto, así que ábrelo con un editor de texto.",
+  btnOpenFile: "Abrir",
+  tipOpenFile: "Abrir en tu editor de texto",
+  btnCopyPath: "Copiar ruta",
+  tipCopyPath: "Copiar la ruta completa al portapapeles",
+  pathCopied: (p) => `copiado: ${p}`,
+  errOpenFailed: (m) => `no se pudo abrir el archivo: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `Este plugin está desactualizado (el tuyo ${mine}, el del equipo ${team}). La sincronización está en pausa hasta que lo actualices.`,
+  panelVersionBehindDesc: "Actualiza el plugin con BRAT. La sincronización se reanuda en cuanto coincidan las versiones.",
+  btnUpdateViaBrat: "Actualizar con BRAT",
+  tipUpdateViaBrat: "Ejecutar el comando de BRAT para buscar actualizaciones y actualizar",
+  errVersionBehind: (mine, team) =>
+    `este plugin (${mine}) es más antiguo que el del equipo (${team}); actualízalo para sincronizar`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Tus propias reglas de exclusión",
-  localIgnoreBody:
-    "Las reglas de aquí solo afectan a tu bóveda; este archivo nunca se sincroniza. Misma sintaxis que _Sync/ignore.md: # es comentario, * ? ** son comodines, una / inicial ancla a la raíz de sincronización, una / final coincide con carpetas y ! deshace una exclusión.",
   panelUnsorted: (n) => `Sin decidir (${n})`,
   panelLocalOnlyDesc: "Drive no tiene estos archivos. Cada uno se queda aquí, sin subir, hasta que decidas.",
   btnShare: "Compartir",

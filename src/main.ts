@@ -10,10 +10,32 @@ import {
 } from "obsidian";
 import { DEFAULT_SETTINGS, DriveTarget, Settings } from "./settings";
 import { SyncController } from "./SyncController";
-import { SyncReport } from "./sync/types";
+import { CloneProgress, SyncReport } from "./sync/types";
+import { FailureKind, classifyFailure, isTransient } from "./sync/errors";
+import { RateEstimator, percentOf } from "./util/progress";
 import { SYNC_PANEL_VIEW, SyncPanelView } from "./obsidian/SyncPanelView";
 import { parseFolderId } from "./providers/drive/DriveTarget";
 import { LANGUAGE_NAMES, isLang, setLanguage, t } from "./i18n";
+
+/** 表示中の失敗。`retryAt` はこちらから拾い直す予定時刻（自然に直らない種類では null）。 */
+export interface SyncFailure {
+  kind: FailureKind;
+  message: string;
+  retryAt: number | null;
+}
+
+/**
+ * 自動の再試行の間隔。短い間隔から始めて 5 分で頭打ちにする。復帰直後のネットワークは
+ * 数秒で戻ることが多く、戻らないときに毎分叩いても意味が無い。
+ */
+const RETRY_DELAYS_MS = [15_000, 30_000, 60_000, 120_000, 300_000];
+
+/**
+ * スリープからの復帰を見つけるための心拍。タイマーは眠っている間は進まないので、
+ * 前回から大きく飛んでいたら眠っていたとみなす。
+ */
+const HEARTBEAT_MS = 30_000;
+const WAKE_GAP_MS = HEARTBEAT_MS * 3;
 
 export default class GoogleDriveSyncPlugin extends Plugin {
   settings: Settings = DEFAULT_SETTINGS;
@@ -25,14 +47,12 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   private pendingLocal = false;
   /** 変更が届いたパス。デバウンス後にまとめて判断する。 */
   private readonly touched = new Set<string>();
-  /**
-   * 直前の同期で自分が書いた Vault 相対パス。
-   *
-   * Vault API 経由で書く以上、自分の書き込みも modify / create / delete を発火する。
-   * これを数えると、ダウンロードが次の同期を呼び、それがまた…と無駄な往復が続く。
-   * 書いたパスを控えておき、戻ってきた分だけ消し込む。
-   */
-  private readonly selfWritten = new Set<string>();
+  /** 直近の失敗。自動同期は通知を出さないので、サイドバーに出して気づかせる。 */
+  syncFailure: SyncFailure | null = null;
+  /** 今が何回目の再試行か。成功したら 0 に戻す。 */
+  private retryStep = 0;
+  private retryTimer: number | null = null;
+  private lastBeat = Date.now();
 
   /** 同期先の問い合わせ中。終わるまで同期を待たせ、古い同期先で走らせない。 */
   private resolvingTarget: Promise<void> | null = null;
@@ -41,13 +61,22 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   /** 直近の問い合わせの失敗。設定画面に出す。 */
   targetError: string | null = null;
 
+  /** 取り込みの進み具合。取り込み中だけ値がある。 */
+  cloneProgress: CloneProgress | null = null;
+  private cloneAbort: AbortController | null = null;
+  private cloneRate = new RateEstimator();
+  private readonly progressListeners = new Set<() => void>();
+  /** 画面の更新を間引くためのタイマー。進み具合はファイル 1 件ごとに届く。 */
+  private progressTimer: number | null = null;
+  private statusBarEl: HTMLElement | null = null;
+
   async onload(): Promise<void> {
     await this.loadSettings();
     // 利用者に見えるものを登録する前に。コマンド名とリボンの名称は登録時に
     // Obsidian が確定させ、以後読み直さない。
     setLanguage(this.settings.language, getLanguage());
 
-    this.controller = new SyncController(this.app, this.settings, () => this.saveData(this.settings));
+    this.controller = new SyncController(this.app, this.settings, () => this.saveData(this.settings), undefined, this.manifest.version);
 
     this.registerView(SYNC_PANEL_VIEW, (leaf) => new SyncPanelView(leaf, this));
     // 同期の操作はすべてこの画面にあるので、最初から右サイドバーに出しておく。
@@ -57,6 +86,12 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     this.addCommand({ id: "open-sync-panel", name: t.panelOpen, callback: () => void this.openPanel() });
     this.addCommand({ id: "sync-now", name: t.cmdSyncNow, callback: () => void this.runSync() });
     this.addSettingTab(new SettingTab(this.app, this));
+
+    // 取り込みの間だけ出す。サイドバーを閉じていても進み具合が分かるように。
+    this.statusBarEl = this.addStatusBarItem();
+    this.statusBarEl.addClass("gds-statusbar", "mod-clickable");
+    this.statusBarEl.hide();
+    this.statusBarEl.addEventListener("click", () => void this.openPanel());
 
     // `on` はイベント名ごとにオーバーロードされているため、まとめて回せない。
     this.registerEvent(this.app.vault.on("modify", (file) => this.noteChange(file.path)));
@@ -70,12 +105,26 @@ export default class GoogleDriveSyncPlugin extends Plugin {
       })
     );
 
+    // ネットワークが戻ったら待たずに拾い直す。復帰の合図は OS から来る。
+    this.registerDomEvent(window, "online", () => this.retryAfterWake());
+    // スリープ中はタイマーが進まない。飛んだ分で復帰を見つける。
+    this.registerInterval(
+      window.setInterval(() => {
+        const gap = Date.now() - this.lastBeat;
+        this.lastBeat = Date.now();
+        if (gap > WAKE_GAP_MS) this.retryAfterWake();
+      }, HEARTBEAT_MS)
+    );
+
     this.applyPolling();
     void this.resolveTarget();
   }
 
   onunload(): void {
     this.stopPolling();
+    this.cancelRetry();
+    this.cancelClone();
+    if (this.progressTimer !== null) window.clearTimeout(this.progressTimer);
   }
 
   /**
@@ -119,7 +168,7 @@ export default class GoogleDriveSyncPlugin extends Plugin {
   // ------------------------------------------------------ ローカル変更の検知
 
   private noteChange(path: string): void {
-    if (this.selfWritten.delete(path)) return; // 自分が書いた分
+    if (this.controller.consumeOwnWrite(path)) return;
     this.touched.add(path);
     this.onLocalChange();
   }
@@ -142,10 +191,90 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     false
   );
 
+  // ---------------------------------------------------------------- 取り込み
+
+  /** 取り込みが走っているか。 */
+  get cloning(): boolean {
+    return this.cloneAbort !== null;
+  }
+
+  /**
+   * Drive から取り込む。進み具合はサイドバーとステータスバーに出す。
+   * 中止されたら、中止を知らせるエラーで終わる。
+   */
+  async runClone(): Promise<SyncReport> {
+    this.cloneAbort = new AbortController();
+    this.cloneRate = new RateEstimator();
+    this.cloneProgress = { phase: "scan", remoteFound: 0, localDone: 0, localTotal: 0 };
+    this.emitProgress(true);
+    try {
+      return await this.controller.clone({
+        signal: this.cloneAbort.signal,
+        onProgress: (p) => {
+          this.cloneProgress = p;
+          if (p.phase === "download") this.cloneRate.add(Date.now(), p.bytesDone);
+          this.emitProgress(p.phase === "finish");
+        },
+      });
+    } finally {
+      this.cloneAbort = null;
+      this.cloneProgress = null;
+      this.emitProgress(true);
+    }
+  }
+
+  cancelClone(): void {
+    this.cloneAbort?.abort();
+  }
+
+  /** 残りのミリ秒。ダウンロード中で、速度が測れたときだけ。 */
+  cloneRemainingMs(): number | null {
+    const p = this.cloneProgress;
+    return p?.phase === "download" ? this.cloneRate.remainingMs(p.bytesTotal) : null;
+  }
+
+  /** 進み具合が変わったら呼ばれる。戻り値で登録を外す。 */
+  onCloneProgress(listener: () => void): () => void {
+    this.progressListeners.add(listener);
+    return () => this.progressListeners.delete(listener);
+  }
+
+  /** 描き直しは 200ms に 1 回まで。始まりと終わりだけは待たずに届ける。 */
+  private emitProgress(now = false): void {
+    if (now) {
+      if (this.progressTimer !== null) window.clearTimeout(this.progressTimer);
+      this.progressTimer = null;
+      this.flushProgress();
+      return;
+    }
+    if (this.progressTimer !== null) return;
+    this.progressTimer = window.setTimeout(() => {
+      this.progressTimer = null;
+      this.flushProgress();
+    }, 200);
+  }
+
+  private flushProgress(): void {
+    this.renderStatusBar();
+    for (const listener of this.progressListeners) listener();
+  }
+
+  private renderStatusBar(): void {
+    const el = this.statusBarEl;
+    if (!el) return;
+    const p = this.cloneProgress;
+    if (!p) {
+      el.hide();
+      return;
+    }
+    el.setText(p.phase === "download" ? t.statusBarClone(percentOf(p)) : t.statusBarScan);
+    el.show();
+  }
+
   // ---------------------------------------------------------------- 同期
 
   /**
-   * @param opts.probeFirst ポーリング由来。リモートに変更が無ければ何もしない。
+   * @param opts.probeFirst ポーリング由来。ローカルにもリモートにも変更が無ければ何もしない。
    * @param opts.quiet 何も起きなかったときに通知を出さない（自動同期用）。
    */
   async runSync(opts: { probeFirst?: boolean; quiet?: boolean; approvedDeletes?: ReadonlySet<string> } = {}): Promise<void> {
@@ -155,18 +284,19 @@ export default class GoogleDriveSyncPlugin extends Plugin {
     }
     if (this.resolvingTarget) await this.resolvingTarget;
     if (opts.quiet && !this.controller.ready) return; // 未設定なら黙って見送る
+    // サイドバーの clone や分類が走っている。断られるだけなので、次のポーリングに任せる。
+    if (opts.quiet && this.controller.busy) return;
 
     this.syncing = true;
     try {
       const report = opts.probeFirst
-        ? await this.controller.syncIfRemoteChanged()
+        ? await this.controller.syncIfChanged()
         : await this.controller.sync({ approvedDeletes: opts.approvedDeletes });
-      if (report) {
-        this.rememberOwnWrites(report);
-        if (!opts.quiet || this.didSomething(report)) new Notice(t.notice(this.summarise(report)));
-      }
+      this.clearFailure();
+      if (report && (!opts.quiet || this.didSomething(report))) new Notice(t.notice(this.summarise(report)));
     } catch (e) {
-      if (!opts.quiet) new Notice(t.notice((e as Error).message));
+      this.noteFailure(e);
+      if (!opts.quiet) new Notice(t.notice(this.syncFailure?.message ?? String(e)));
     } finally {
       this.syncing = false;
       this.refreshPanels();
@@ -175,15 +305,6 @@ export default class GoogleDriveSyncPlugin extends Plugin {
         void this.runSync({ quiet: true });
       }
     }
-  }
-
-  /** 自分が書いたパスを控える。戻ってくるイベントを数えないため。 */
-  private rememberOwnWrites(report: SyncReport): void {
-    const mount = this.settings.mountFolder.replace(/^\/+|\/+$/g, "");
-    const toVaultPath = (p: string): string => (mount ? `${mount}/${p}` : p);
-    for (const p of report.downloaded) this.selfWritten.add(toVaultPath(p));
-    for (const p of report.deletedLocal) this.selfWritten.add(toVaultPath(p));
-    for (const c of report.conflicts) this.selfWritten.add(toVaultPath(c.conflictPath));
   }
 
   private didSomething(r: SyncReport): boolean {
@@ -200,6 +321,59 @@ export default class GoogleDriveSyncPlugin extends Plugin {
       (r.deferredDeletes.length ? t.syncDeferred(r.deferredDeletes.length) : "") +
       (r.errors.length ? t.syncErrorCount(r.errors.length) : "")
     );
+  }
+
+  // ------------------------------------------------------------ 失敗と自動復帰
+
+  /**
+   * 失敗を控える。自然に直る種類（ネットワーク断、Drive の一時障害）は、間隔を
+   * 伸ばしながらこちらから拾い直す。直らない種類は叩き続けても Google に弾かれる
+   * だけなので、表示だけにして待たない。
+   */
+  noteFailure(error: unknown): void {
+    const kind = classifyFailure(error);
+    const message = error instanceof Error ? error.message : String(error);
+    this.cancelRetry();
+    const retryAt = isTransient(kind) ? this.scheduleRetry() : null;
+    this.syncFailure = { kind, message, retryAt };
+    this.refreshPanels();
+  }
+
+  /** 成功した。控えも再試行も捨てる。 */
+  clearFailure(): void {
+    this.cancelRetry();
+    this.retryStep = 0;
+    if (this.syncFailure) {
+      this.syncFailure = null;
+      this.refreshPanels();
+    }
+  }
+
+  /** 次の再試行を予約し、その時刻を返す。 */
+  private scheduleRetry(): number {
+    const delay = RETRY_DELAYS_MS[Math.min(this.retryStep, RETRY_DELAYS_MS.length - 1)];
+    this.retryStep++;
+    this.retryTimer = window.setTimeout(() => {
+      this.retryTimer = null;
+      void this.runSync({ probeFirst: true, quiet: true });
+    }, delay);
+    return Date.now() + delay;
+  }
+
+  private cancelRetry(): void {
+    if (this.retryTimer !== null) window.clearTimeout(this.retryTimer);
+    this.retryTimer = null;
+  }
+
+  /**
+   * ネットワークの復帰、またはスリープからの復帰。自然に直る失敗を抱えていれば、
+   * 予約を待たずに、間隔も最初に戻して試す。
+   */
+  private retryAfterWake(): void {
+    if (!this.syncFailure || !isTransient(this.syncFailure.kind)) return;
+    this.cancelRetry();
+    this.retryStep = 0;
+    void this.runSync({ probeFirst: true, quiet: true });
   }
 
   // -------------------------------------------------------------- 同期先
@@ -284,7 +458,7 @@ function targetPathSegments(target: DriveTarget): string[] {
 const CREDENTIALS_URL = "https://console.cloud.google.com/apis/credentials";
 
 /** 名前で読み書きされる、宣言的コントロールに紐づく設定キー。 */
-type ControlKey = "language" | "oauthClientId" | "targetUrl" | "mountFolder";
+type ControlKey = "language" | "oauthClientId" | "targetUrl";
 
 const asString = (v: unknown): string => (typeof v === "string" ? v : "");
 
@@ -339,13 +513,10 @@ class SettingTab extends PluginSettingTab {
       case "targetUrl":
         s.targetUrl = asString(value).trim();
         break;
-      case "mountFolder":
-        s.mountFolder = asString(value).trim();
-        break;
     }
     await this.plugin.saveSettings();
 
-    if (key === "language" || key === "mountFolder") this.update();
+    if (key === "language") this.update();
   }
 
   // -------------------------------------------------------------- 行の部品
@@ -454,7 +625,6 @@ class SettingTab extends PluginSettingTab {
   }
 
   private targetGroup(): SettingDefinitionItem {
-    const s = this.plugin.settings;
     const c = this.plugin.controller;
 
     const buttons: { label: string; cta?: boolean; destructive?: boolean; onClick: () => void }[] = [
@@ -488,15 +658,6 @@ class SettingTab extends PluginSettingTab {
               setting.setDesc(this.targetStatus());
             });
           },
-        },
-        {
-          name: t.mountName,
-          desc: t.mountDesc,
-          control: { type: "text", key: "mountFolder", placeholder: t.mountPlaceholder },
-        },
-        {
-          name: "",
-          desc: s.mountFolder ? t.mountMapping(s.mountFolder) : t.mountMappingWholeVault,
         },
       ],
     };

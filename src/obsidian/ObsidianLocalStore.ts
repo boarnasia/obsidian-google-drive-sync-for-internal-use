@@ -1,88 +1,59 @@
-import { App, TAbstractFile, TFile, TFolder, normalizePath } from "obsidian";
+import { App, TFile, normalizePath } from "obsidian";
 import { LocalStore } from "../sync/LocalStore";
-import { LocalFile, LocalStamp } from "../sync/types";
+import { LocalFile, LocalStamp, LocalStat } from "../sync/types";
 import { sha256Hex } from "../util/hash";
 import { safeVaultPath } from "../util/paths";
 import { runPool } from "../util/pool";
 import { t } from "../i18n";
+import { TEAM_IGNORE_PATH } from "../sync/configFiles";
 
 /** 同時に中身を読むファイル数。大きな添付が数百件あっても、載るのはこの数だけ。 */
 const HASH_CONCURRENCY = 8;
 
 /**
- * 共有Vault のローカル側。
- *
- * `mountFolder` は「同期する範囲の絞り込み」ではなく **マウントポイント** である。
- * その直下が同期ルートの直下に対応し、フォルダ名自体はリモートに現れない。この
- * 変換をここで閉じ込めているので、同期エンジンより上はマウント相対のパスだけを
- * 扱えばよく、各自がローカルのどこを繋いでいるかを意識しなくて済む（ADR-0004）。
+ * 同期するドットファイル。Obsidian の Vault API はドットで始まるパスを索引に
+ * 載せないので、これらだけはアダプタで読み書きする（ADR-0007）。
+ */
+const HIDDEN_FILES: readonly string[] = [TEAM_IGNORE_PATH];
+
+/**
+ * 共有Vault のローカル側。Vault 全体が同期ルートに対応する。
  *
  * 書き込みは Vault API を通す。ファイルシステムを直接叩くと、利用者が開いている
  * ファイルをエディタの裏で書き換えることになる（ADR-0001）。
  */
 export class ObsidianLocalStore implements LocalStore {
-  private readonly mount: string;
-
-  constructor(private readonly app: App, mountFolder: string) {
-    this.mount = mountFolder.replace(/^\/+|\/+$/g, "");
-  }
+  /**
+   * @param beforeWrite 書き込み・削除・フォルダ作成の直前に Vault 相対パスを受け取る。
+   *   Obsidian は modify / create / delete を書き込みの完了 *前* に発火するので、
+   *   自分の書き込みを見分けたい側は、ここで先に控えておく必要がある。
+   */
+  constructor(
+    private readonly app: App,
+    private readonly beforeWrite: (path: string) => void = () => undefined
+  ) {}
 
   // ------------------------------------------------------------ パスの変換
 
-  /** マウント相対 → Vault 相対。範囲外に出る入力はここで弾く。 */
+  /** 範囲外に出る入力はここで弾く。 */
   private resolve(path: string): string {
     const rel = safeVaultPath(path);
     if (!rel) throw new Error(t.errEmptyPath);
-    const full = normalizePath(this.mount ? `${this.mount}/${rel}` : rel);
+    const full = normalizePath(rel);
     // 読み取り側の境界と書き込み側の境界を同じ関数で決める。片方だけが緩いと、
     // リモートが返したパスで Vault の外——とりわけ設定ディレクトリ——に書ける。
-    if (!this.inMount(full)) throw new Error(t.errOutsideMount(full));
+    if (!this.inScope(full)) throw new Error(t.errOutsideMount(full));
     return full;
   }
 
-  /** Vault 相対 → マウント相対。 */
-  private toMountRelative(full: string): string {
-    return this.mount ? full.slice(this.mount.length + 1) : full;
-  }
-
-  private inMount(full: string): boolean {
+  private inScope(full: string): boolean {
     const cfg = this.app.vault.configDir;
     // 設定ディレクトリは無条件で対象外。ここには data.json があり、Google の
     // リフレッシュトークンが入っている（ADR-0003）。
-    if (full === cfg || full.startsWith(cfg + "/")) return false;
-    if (!this.mount) return true;
-    return full.startsWith(this.mount + "/");
+    return full !== cfg && !full.startsWith(cfg + "/");
   }
 
   // ---------------------------------------------------------------- 読み取り
-
-  /**
-   * 共有Vault に属するファイル。
-   *
-   * マウントポイントが指定されていれば、その部分木だけを歩く。Vault の他の場所は
-   * 列挙すらしないので、このプラグインはそこに何があるかを知らない。マウントが
-   * 空のときだけ、利用者が Vault 全体を共有すると決めたということなので、
-   * `getFiles()` を明示的に呼ぶ。
-   */
-  private filesInMount(): TFile[] {
-    if (!this.mount) return this.app.vault.getFiles().filter((f) => this.inMount(f.path));
-
-    const root = this.app.vault.getFolderByPath(this.mount);
-    // 存在しないマウントポイントは「同期対象ゼロ」。決して Vault 全体に広げない。
-    // 広げれば全パスが漏れ、Vault 丸ごとがアップロードされる。
-    if (!root) return [];
-
-    const found: TFile[] = [];
-    const visit = (entry: TAbstractFile): void => {
-      if (entry instanceof TFolder) {
-        for (const child of entry.children) visit(child);
-      } else if (entry instanceof TFile && this.inMount(entry.path)) {
-        found.push(entry);
-      }
-    };
-    visit(root);
-    return found;
-  }
 
   /**
    * 同期範囲のファイル一覧。
@@ -91,24 +62,39 @@ export class ObsidianLocalStore implements LocalStore {
    * `known` のハッシュをそのまま使う。これが無いと、何も変わっていない同期でも
    * Vault 全体を読み直すことになる。
    */
-  async list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]> {
+  async list(known?: ReadonlyMap<string, LocalStamp>, onHashed?: (done: number, total: number) => void): Promise<LocalFile[]> {
     const out: LocalFile[] = [];
     const toHash: TFile[] = [];
 
-    for (const f of this.filesInMount()) {
-      const path = this.toMountRelative(f.path);
-      const { mtime, size } = f.stat;
+    for (const f of this.app.vault.getFiles()) {
+      if (!this.inScope(f.path)) continue;
+      const { path, stat: { mtime, size } } = f;
       const cached = known?.get(path);
       if (cached && cached.mtime === mtime && cached.size === size) out.push({ path, hash: cached.hash, mtime, size });
       else toHash.push(f);
     }
 
+    for (const path of HIDDEN_FILES) {
+      const stat = await this.app.vault.adapter.stat(path);
+      if (stat?.type !== "file") continue;
+      const { mtime, size } = stat;
+      const cached = known?.get(path);
+      const hash =
+        cached && cached.mtime === mtime && cached.size === size
+          ? cached.hash
+          : await sha256Hex(await this.app.vault.adapter.readBinary(path));
+      out.push({ path, hash, mtime, size });
+    }
+
     // 読むものだけを、上限を付けて読む。全件を一度に読むと、初回同期で Vault の
     // 中身がまるごと同時にメモリに載る。
+    let hashed = 0;
+    onHashed?.(0, toHash.length);
     await runPool(toHash, HASH_CONCURRENCY, async (f) => {
       const { mtime, size } = f.stat;
       const hash = await sha256Hex(await this.app.vault.readBinary(f));
-      out.push({ path: this.toMountRelative(f.path), hash, mtime, size });
+      out.push({ path: f.path, hash, mtime, size });
+      onHashed?.(++hashed, toHash.length);
     });
     // 読み終わった順ではなくパス順で返す。サイドバーの一覧が更新のたびに並び替わらない。
     return out.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
@@ -116,6 +102,7 @@ export class ObsidianLocalStore implements LocalStore {
 
   async read(path: string): Promise<ArrayBuffer> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) return this.app.vault.adapter.readBinary(full);
     const file = this.app.vault.getFileByPath(full);
     if (!file) throw new Error(t.errLocalMissing(full));
     return this.app.vault.readBinary(file);
@@ -124,11 +111,13 @@ export class ObsidianLocalStore implements LocalStore {
   /**
    * 設定ファイル用。無ければ null を返す。
    *
-   * 同期の対象かどうかとは無関係に読む必要がある（`_SyncLocal/` は同期しないが、
-   * 読み書きはする）。
+   * 同期の対象かどうかとは無関係に読む必要がある（除外規則は、同期が始まる前に読む）。
    */
   async readText(path: string): Promise<string | null> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) {
+      return (await this.app.vault.adapter.exists(full)) ? this.app.vault.adapter.read(full) : null;
+    }
     const file = this.app.vault.getFileByPath(full);
     if (!file) return null;
     return this.app.vault.read(file);
@@ -141,16 +130,25 @@ export class ObsidianLocalStore implements LocalStore {
    * ファイルが開かれていればエディタが正しくリロードされ、他の人の更新がその場で
    * 見える。これがこのモデルの目的そのものである（ADR-0001）。
    */
-  async write(path: string, data: ArrayBuffer): Promise<void> {
+  async write(path: string, data: ArrayBuffer): Promise<LocalStat> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) {
+      // Vault の索引に載らないので変更イベントも来ない。自分の書き込みとして控える必要は無い。
+      await this.app.vault.adapter.writeBinary(full, data);
+      const stat = await this.app.vault.adapter.stat(full);
+      if (!stat) throw new Error(t.errLocalMissing(full));
+      return { mtime: stat.mtime, size: stat.size };
+    }
     const existing = this.app.vault.getFileByPath(full);
     if (existing) {
+      this.beforeWrite(full);
       await this.app.vault.modifyBinary(existing, data);
-      return;
+      return statOf(existing);
     }
     const slash = full.lastIndexOf("/");
     if (slash > 0) await this.ensureFolder(full.slice(0, slash));
-    await this.app.vault.createBinary(full, data);
+    this.beforeWrite(full);
+    return statOf(await this.app.vault.createBinary(full, data));
   }
 
   /** 祖先フォルダを順に作る（createFolder は再帰的ではない）。 */
@@ -160,6 +158,7 @@ export class ObsidianLocalStore implements LocalStore {
       if (!part) continue;
       cur = cur ? `${cur}/${part}` : part;
       if (this.app.vault.getFolderByPath(cur)) continue;
+      this.beforeWrite(cur);
       // 直前の存在確認をすり抜けて既にある場合（別の同期や利用者の操作）は無視する。
       await this.app.vault.createFolder(cur).catch(() => undefined);
     }
@@ -167,12 +166,23 @@ export class ObsidianLocalStore implements LocalStore {
 
   async delete(path: string): Promise<void> {
     const full = this.resolve(path);
+    if (HIDDEN_FILES.includes(full)) {
+      if (!(await this.app.vault.adapter.exists(full))) return;
+      if (!(await this.app.vault.adapter.trashSystem(full))) await this.app.vault.adapter.trashLocal(full);
+      return;
+    }
     const file = this.app.vault.getAbstractFileByPath(full);
     if (!file) return;
+    this.beforeWrite(full);
     // 完全削除はしない。「リモートで消えた」という判断が誤っていても、必ず戻せる
     // ようにしておく。OS のゴミ箱を優先し、使えなければ Vault 内の .trash に落とす。
     // FileManager.trashFile は利用者の「完全に削除」設定にも従ってしまうので使わない
     // （lint の prefer-file-manager-trash-file 警告は承知の上で残す）。
     await this.app.vault.trash(file, true).catch(() => this.app.vault.trash(file, false));
   }
+}
+
+/** 書き込みの完了までに Obsidian が stat を新しい姿に更新している。 */
+function statOf(file: TFile): LocalStat {
+  return { mtime: file.stat.mtime, size: file.stat.size };
 }

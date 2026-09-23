@@ -2,8 +2,8 @@ import type { Strings } from "./en";
 
 export const de: Strings = {
   // ------------------------------------------------------------------ 全般
-  notice: (msg) => `Google Drive Sync: ${msg}`,
-  ribbonSyncNow: "Google Drive Sync: jetzt synchronisieren",
+  notice: (msg) => `Team Drive Sync: ${msg}`,
+  ribbonSyncNow: "Team Drive Sync: jetzt synchronisieren",
   cmdSyncNow: "Jetzt synchronisieren",
   syncAlreadyRunning: "es läuft bereits eine Synchronisierung…",
   syncSummary: (up, down, del, conflicts) => `↑${up} ↓${down} ✗${del} ⚠${conflicts}`,
@@ -64,13 +64,6 @@ export const de: Strings = {
   targetMyDriveWarning:
     "⚠ Dateien in „Meine Ablage“ (persönlich) erreichen niemanden sonst. Verwende für die Team-Synchronisierung einen Ordner in einer geteilten Ablage.",
 
-  mountName: "Lokaler Ordner",
-  mountDesc:
-    "Welcher Ordner dieses Tresors der gemeinsame Tresor ist. Sein Inhalt entspricht dem Inhalt des Zielordners – der Ordnername selbst erscheint nie in Drive, daher kann jede Person ihn anders nennen. Leer = der ganze Tresor.",
-  mountPlaceholder: "(ganzer Tresor)",
-  mountMapping: (local) => `${local}/ ⇄ Zielordner`,
-  mountMappingWholeVault: "ganzer Tresor ⇄ Zielordner",
-
   // -------------------------------------------------------------------- 同期
   syncHeading: "Synchronisierung",
   syncNowName: "Jetzt synchronisieren",
@@ -93,6 +86,7 @@ export const de: Strings = {
   panelChecking: "Änderungen werden geprüft…",
   panelReady: "✓ Bereit zum Synchronisieren.",
   panelBlocked: "⚠ Uploads sind angehalten.",
+  panelSyncFailed: (message) => `✗ Letzte Synchronisierung fehlgeschlagen: ${message}`,
   reasonNoBaseline:
     "Dieser Tresor wurde noch nicht von Drive geholt, und auf beiden Seiten liegen Dateien. Führe zuerst „Von Drive holen“ aus.",
   reasonVaultEmpty:
@@ -126,10 +120,54 @@ export const de: Strings = {
   cloneDone: (down, conflicts, localOnly) =>
     `clone fertig — ↓${down}, ${conflicts} Konfliktkopie(n), ${localOnly} nur lokale Datei(en)`,
 
+  // ------------------------------------------------------------ 失敗の知らせ方
+  failNetwork: "Keine Netzwerkverbindung. Die Synchronisierung läuft von selbst weiter, sobald die Verbindung zurück ist. Zum sofortigen Versuch „Status prüfen“ drücken.",
+  failServer: "Google Drive antwortet gerade nicht. Die Synchronisierung läuft in Kürze von selbst weiter.",
+  failAuth: "Deine Google-Anmeldung ist abgelaufen. Verbinde dich in den Einstellungen neu.",
+  failTarget: "Der synchronisierte Ordner lässt sich nicht öffnen. Prüfe, ob er im Papierkorb liegt und ob du noch Zugriff auf die geteilte Ablage hast.",
+  failQuota: "Drive hat keinen Speicher mehr, oder das Dateilimit ist erreicht. Wende dich an deine Administration.",
+  failDetail: (m) => `Details: ${m}`,
+  btnOpenSettings: "Einstellungen öffnen",
+  tipOpenSettings: "Plugin-Einstellungen zum Neuverbinden öffnen",
+  failRetryIn: (x) => `neuer Versuch in etwa ${x}`,
+
+  // ------------------------------------------------------------ 取り込みの進み具合
+  progressTitle: "Import aus Drive",
+  progressScan: (n) => `Dateien werden aufgelistet … ${n} in Drive`,
+  progressScanLocal: (d, t) => `lokale Prüfung ${d} / ${t}`,
+  progressFinishing: "Wird abgeschlossen …",
+  progressFiles: (d, t) => `${d} / ${t} Dateien`,
+  progressRemaining: (x) => `noch etwa ${x}`,
+  durationSeconds: (n) => `${n} s`,
+  durationMinutes: (n) => `${n} Min.`,
+  progressFailed: (n) => `${n} fehlgeschlagen`,
+  btnCancelClone: "Abbrechen",
+  tipCancelClone: "Import stoppen. Bereits geladene Dateien bleiben; nichts wird als synchronisiert vermerkt.",
+  cloneAborted: (n) => `Import abgebrochen – ${n} bereits geladene Datei(en) bleiben hier`,
+  statusBarClone: (p) => `Import ${p} %`,
+  statusBarScan: "Import läuft …",
+
+  // ------------------------------------------------------------ 設定ファイル
+  panelConfigFiles: "Konfigurationsdateien",
+  panelIgnoreDesc:
+    "Die Ausschlussregeln des Teams stehen in .tds-ignore oben im synchronisierten Ordner. Obsidian zeigt Dateien mit führendem Punkt nicht an, öffne sie daher in einem Texteditor.",
+  btnOpenFile: "Öffnen",
+  tipOpenFile: "Im Texteditor öffnen",
+  btnCopyPath: "Pfad kopieren",
+  tipCopyPath: "Vollständigen Pfad in die Zwischenablage kopieren",
+  pathCopied: (p) => `kopiert: ${p}`,
+  errOpenFailed: (m) => `Datei konnte nicht geöffnet werden: ${m}`,
+
+  // ------------------------------------------------------------ 版の目印
+  panelVersionBehind: (mine, team) =>
+    `Dieses Plugin ist veraltet (deins ${mine}, Team ${team}). Die Synchronisierung pausiert bis zum Update.`,
+  panelVersionBehindDesc: "Aktualisiere das Plugin mit BRAT. Sobald die Versionen übereinstimmen, geht die Synchronisierung weiter.",
+  btnUpdateViaBrat: "Mit BRAT aktualisieren",
+  tipUpdateViaBrat: "BRAT-Befehl zum Suchen und Installieren von Updates ausführen",
+  errVersionBehind: (mine, team) =>
+    `dieses Plugin (${mine}) ist älter als das des Teams (${team}); zum Synchronisieren aktualisieren`,
+
   // ------------------------------------------------ ローカル固有ファイルの分類
-  localIgnoreTitle: "Deine eigenen Ausschlussregeln",
-  localIgnoreBody:
-    "Die Regeln hier gelten nur für deinen Tresor; diese Datei wird nie synchronisiert. Gleiche Syntax wie _Sync/ignore.md: # ist ein Kommentar, * ? ** sind Platzhalter, ein führender / bindet an die Synchronisierungswurzel, ein abschließender / trifft Ordner, ! hebt einen Ausschluss auf.",
   panelUnsorted: (n) => `Noch nicht entschieden (${n})`,
   panelLocalOnlyDesc: "Drive hat diese Dateien nicht. Jede bleibt hier und wird nicht hochgeladen, bis du entscheidest.",
   btnShare: "Teilen",

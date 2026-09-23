@@ -1,24 +1,26 @@
 /**
- * Vault 内の設定ファイル（ADR-0006）。clone が成功した直後に、無いものだけ作る。
+ * 同期ルート直下の設定ファイル（ADR-0007）。
  *
- * `_Sync/` は同期されるので、最初の一人が作ったものがチーム全員に配られる。中身は
- * 英語で固定する。`_SyncLocal/` は配られないので、各自の UI 言語で作る。
+ * どちらもドットで始まるので Obsidian のファイル一覧には出ない。規則を Markdown の
+ * ノートとして置くと、Obsidian で開いたときに見出しと箇条書きに化けて読めないため、
+ * 割り切って素のテキストにした。開く手段はサイドバーに置く。
  */
-export const SYNC_DIR = "_Sync";
-export const SYNC_LOCAL_DIR = "_SyncLocal";
 
-export const TEAM_IGNORE_PATH = `${SYNC_DIR}/ignore.md`;
-export const TEAM_README_PATH = `${SYNC_DIR}/README.md`;
-export const LOCAL_IGNORE_PATH = `${SYNC_LOCAL_DIR}/ignore.md`;
+/** チームで共有する除外規則。普通のファイルとして同期され、全員に配られる。 */
+export const TEAM_IGNORE_PATH = ".tds-ignore";
 
 /**
- * 共有される説明は英語で固定する（ADR-0006）。
- *
- * 説明の行はすべて `#` で始める。このファイルの読み手は Markdown ではなく
- * `parseIgnore` であり、そこでは `#` で始まらない行がすべて規則になる。Markdown の
- * 散文として書くと、説明の一行一行が規則として登録される。
+ * チームで使っているプラグインの版。Drive 上にだけ置き、同期はしない。
+ * 誰かが新しい版で同期すると上がり、それより古い版の同期は止まる。
  */
-export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules — paths that are never synced, for anyone on the team.
+export const VERSION_PATH = ".tds-version";
+
+/**
+ * 共有される説明は英語で固定する。最初の一人が作ったものが全員に配られるため。
+ *
+ * 説明の行はすべて `#` で始める。`parseIgnore` は `#` で始まらない行をすべて規則にする。
+ */
+export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules (Team Drive Sync) — paths that are never synced, for anyone on the team.
 #
 # This file is itself synced, so the whole team gets the same rules.
 #
@@ -35,57 +37,12 @@ export const TEAM_IGNORE_TEMPLATE = `# Shared ignore rules — paths that are ne
 #   ?       one character
 #   /foo    anchored to the sync root
 #   foo/    folders only, and everything inside them
-#   !foo    un-ignores what an earlier rule matched
+#   !foo    un-ignores what an earlier rule matched, but never a file
+#           inside an ignored folder
 #
-# Later rules win. _SyncLocal/ is always ignored, and _Sync/ignore.md can
-# never be ignored.
+# Later rules win. This file itself can never be ignored.
 #
 # Write one rule per line below.
 
 Drafts/
-*.tmp
 `;
-
-export const TEAM_README_TEMPLATE = `# Google Drive Sync
-
-This vault — or the folder mounted as the shared vault — is synced with a Google
-Drive folder through the "Google Drive Sync (Internal Use)" plugin. Everyone on
-the team points the plugin at the same Drive folder.
-
-## The two config folders
-
-- \`_Sync/\` is synced. Rules here apply to the whole team.
-  - \`ignore.md\` — paths that are never synced.
-- \`_SyncLocal/\` is never synced. It only exists in your own vault.
-  - \`ignore.md\` — paths you alone do not want synced.
-
-## How syncing works here
-
-- Your changes are uploaded as they happen; other people's changes arrive on a timer.
-- Deleting is never permanent: files go to the trash on both sides.
-- If the plugin is unsure that its record of the last sync still matches reality,
-  it holds uploads and tells you why in the sync manager. Downloads keep working.
-- "Pull from Drive" brings the remote copy here without deleting anything local.
-  Files you have that Drive does not are listed in the sync manager, where you
-  decide one by one whether to share or delete them. Until you decide, they are
-  not uploaded.
-`;
-
-/**
- * 説明として渡された文を、そのまま規則にしないための一手間。空行も `#` にする——
- * 素の空行は読み飛ばされるが、翻訳が段落を含んでも扱いが変わらない方がよい。
- */
-function commentOut(text: string): string {
-  return text
-    .split(/\r?\n/)
-    .map((line) => (line.trim() ? `# ${line.trim()}` : "#"))
-    .join("\n");
-}
-
-/**
- * 各自の除外ファイル。中身は利用者の UI 言語で作るので、説明の文面は翻訳から来る。
- * 翻訳者が `#` を付け忘れても規則にならないよう、ここで必ず付ける。
- */
-export function localIgnoreTemplate(labels: { title: string; body: string }): string {
-  return `${commentOut(labels.title)}\n#\n${commentOut(labels.body)}\n`;
-}

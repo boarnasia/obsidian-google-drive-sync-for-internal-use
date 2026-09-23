@@ -1,4 +1,4 @@
-import { LocalFile, LocalStamp } from "./types";
+import { LocalFile, LocalStamp, LocalStat } from "./types";
 
 /**
  * The local side of a sync (a vault, or a chosen subfolder). The Obsidian
@@ -12,11 +12,17 @@ export interface LocalStore {
    * `known` carries the stamp (hash + mtime + size) of the last time each path was
    * hashed. A file whose mtime and size are unchanged keeps that hash and is not
    * read — otherwise every sync would read the whole vault to learn nothing.
+   *
+   * `onHashed` reports progress over the files that do have to be read.
    */
-  list(known?: ReadonlyMap<string, LocalStamp>): Promise<LocalFile[]>;
+  list(known?: ReadonlyMap<string, LocalStamp>, onHashed?: (done: number, total: number) => void): Promise<LocalFile[]>;
   read(path: string): Promise<ArrayBuffer>;
   /** Text of a file that may not exist; `null` when it does not. Used for the config files. */
   readText(path: string): Promise<string | null>;
-  write(path: string, data: ArrayBuffer): Promise<void>;
+  /**
+   * Returns the file's mtime and size after the write, so the baseline can carry a
+   * stamp for downloaded files and the next listing does not have to read them back.
+   */
+  write(path: string, data: ArrayBuffer): Promise<LocalStat>;
   delete(path: string): Promise<void>;
 }

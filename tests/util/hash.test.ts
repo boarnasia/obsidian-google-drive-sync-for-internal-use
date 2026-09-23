@@ -13,6 +13,7 @@ describe("sha256Hex", () => {
     );
   });
 
+  // 期待値に 0x01 のバイト（"8f01cf" の "01"）があるので、1 桁のバイトを 2 桁に揃えることもここで確かめている。
   it("既知のベクタと一致する（abc）", async () => {
     expect(await sha256Hex(enc("abc"))).toBe(
       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
@@ -29,11 +30,5 @@ describe("sha256Hex", () => {
 
   it("1 バイト違えば別のハッシュ", async () => {
     expect(await sha256Hex(enc("v1"))).not.toBe(await sha256Hex(enc("v2")));
-  });
-
-  it("先頭が 0 のバイトでも桁を落とさない", async () => {
-    // 0x00 のバイト列は "00" と 2 桁で出る必要がある（padStart の検証）。
-    const hex = await sha256Hex(new Uint8Array([0, 0, 0]).buffer);
-    expect(hex).toHaveLength(64);
   });
 });

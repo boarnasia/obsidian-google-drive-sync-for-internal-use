@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { SyncEngine, defaultDeleteGuard } from "../../src/sync/SyncEngine";
-import { SyncStateData } from "../../src/sync/types";
+import { CloneProgress, SyncStateData } from "../../src/sync/types";
 import { FakeLocal, FakeRemote, enc } from "../helpers/fakes";
 import { ignoreMatcher } from "../../src/sync/ignore";
 
@@ -602,6 +602,41 @@ describe("速さのための約束", () => {
     expect(L.hashedPaths).toEqual(["a.md"]);
   });
 
+  it("姿の無い項目は、一度読み直したら姿を持つ（毎回は読まない）", async () => {
+    L.store.set("a.md", enc("x"));
+    const s1 = await baseline();
+    delete s1["a.md"].localMtime;
+    delete s1["a.md"].localSize;
+    const { state: s2 } = await sync(s1);
+
+    L.hashedPaths = [];
+    await sync(s2);
+
+    expect(L.hashedPaths).toEqual([]);
+  });
+
+  it("ダウンロードしたファイルは、次の同期で読み直さない", async () => {
+    await L.write("mine.md", enc("x"));
+    const s1 = await baseline();
+    await R.put("共有.md", enc("remote"));
+    const { state: s2 } = await sync(s1);
+
+    L.hashedPaths = [];
+    await sync(s2);
+
+    expect(L.hashedPaths).toEqual([]);
+  });
+
+  it("clone で降ろしたファイルも読み直さない", async () => {
+    await R.put("共有.md", enc("remote"));
+    const { state } = await clone();
+
+    L.hashedPaths = [];
+    await sync(state);
+
+    expect(L.hashedPaths).toEqual([]);
+  });
+
   it("ファイルを並列に処理する（1 件ずつ待たない）", async () => {
     for (let i = 0; i < 16; i++) L.store.set(`n${i}.md`, enc(String(i)));
 
@@ -650,5 +685,120 @@ describe("defaultDeleteGuard", () => {
 
   it("端数は切り上げる", () => {
     expect(defaultDeleteGuard(101)).toBe(21);
+  });
+});
+
+describe("ローカルの変更の有無", () => {
+  const changed = (prev: SyncStateData, held: ReadonlySet<string> = new Set()) =>
+    new SyncEngine(L, R, FIXED, undefined, undefined, undefined, held).hasLocalChanges(prev);
+
+  it("同期した直後は変更なし（ダウンロードしたファイルを含む）", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    await R.put("b.md", enc("y"));
+    const { state: s2 } = await sync(s1);
+
+    expect(await changed(s2)).toBe(false);
+  });
+
+  it("編集したファイルがあれば変更あり", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    await L.write("a.md", enc("x2"));
+
+    expect(await changed(s1)).toBe(true);
+  });
+
+  it("新しいファイルがあれば変更あり", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    await L.write("b.md", enc("y"));
+
+    expect(await changed(s1)).toBe(true);
+  });
+
+  it("消えたファイルがあれば変更あり", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    await L.delete("a.md");
+
+    expect(await changed(s1)).toBe(true);
+  });
+
+  it("触っただけで中身が同じなら変更なし", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    L.setMtime("a.md", 12345);
+
+    expect(await changed(s1)).toBe(false);
+  });
+
+  it("分類待ちのファイルは数えない（上げないと決まっている）", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    await L.write("私のメモ.md", enc("私的"));
+
+    expect(await changed(s1, new Set(["私のメモ.md"]))).toBe(false);
+  });
+
+  it("リモートには問い合わせない", async () => {
+    await L.write("a.md", enc("x"));
+    const s1 = await baseline();
+    R.list = async () => {
+      throw new Error("リモートを見に行った");
+    };
+
+    expect(await changed(s1)).toBe(false);
+  });
+});
+
+describe("clone の進み具合と中止", () => {
+  it("一覧の段階を経て、ダウンロードの件数とバイト数を数える", async () => {
+    await R.put("a.md", enc("12345"));
+    await R.put("b.md", enc("67"));
+    const seen: CloneProgress[] = [];
+
+    await engine().clone({}, { onProgress: (p) => seen.push(p) });
+
+    expect(seen[0].phase).toBe("download"); // 偽物の一覧は件数を報告しない
+    const last = seen[seen.length - 1];
+    expect(last).toMatchObject({ phase: "download", done: 2, total: 2, bytesDone: 7, bytesTotal: 7, failed: 0 });
+  });
+
+  it("失敗した件数も数える", async () => {
+    await R.put("a.md", enc("x"));
+    L.write = async () => {
+      throw new Error("disk full");
+    };
+    let last: CloneProgress | undefined;
+
+    await engine().clone({}, { onProgress: (p) => (last = p) });
+
+    expect(last).toMatchObject({ phase: "download", done: 1, failed: 1 });
+  });
+
+  it("中止すると、まだ始めていないファイルは取りに行かない", async () => {
+    for (let i = 0; i < 40; i++) await R.put(`n${i}.md`, enc(String(i)));
+    const abort = new AbortController();
+
+    const { report, aborted } = await engine().clone(
+      {},
+      {
+        signal: abort.signal,
+        onProgress: (p) => {
+          if (p.phase === "download" && p.done >= 1) abort.abort();
+        },
+      }
+    );
+
+    expect(aborted).toBe(true);
+    expect(report.downloaded.length).toBeLessThan(40);
+    // 走り出したものは最後まで書く。書きかけのファイルは残さない。
+    for (const path of report.downloaded) expect(L.text(path)).toBe(R.text(path));
+  });
+
+  it("中止しなければ aborted は false", async () => {
+    await R.put("a.md", enc("x"));
+    expect((await clone()).aborted).toBe(false);
   });
 });

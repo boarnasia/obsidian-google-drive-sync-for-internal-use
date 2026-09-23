@@ -1,12 +1,10 @@
 import { HttpSend } from "../RemoteProvider";
 
 /**
- * Provider-neutral Google OAuth 2.0 primitives (installed-app / PKCE). Shared by
- * the Drive and GCS "Connect" flows — neither the auth-URL builder nor the token
- * exchange/refresh is provider-specific; only the requested *scope* differs, and
- * scopes live with their provider (`driveScope`, `gcsOAuthScope`). A client
- * secret is sent only when the OAuth client requires one at token exchange
- * (Google's "Web"/"Desktop" clients do, even with PKCE).
+ * Google OAuth 2.0 primitives (installed-app / PKCE). The requested scope is
+ * passed in by the caller (`DRIVE_SCOPE` in SyncController). A client secret is
+ * sent only when one is configured: Google's "Desktop" clients require it at the
+ * token endpoint, even with PKCE.
  *
  * There is deliberately NO built-in OAuth client here. Shipping one would mean
  * embedding a live client secret in the released main.js: Google requires
@@ -17,8 +15,8 @@ import { HttpSend } from "../RemoteProvider";
  * risk), and injecting it at build time makes the released bundle impossible to
  * reproduce from source, which is exactly what provenance checks look for.
  *
- * Instead each user supplies their own OAuth client (Settings → the backend's
- * "OAuth client" rows). The credential then lives only in that user's local
+ * Instead each organization creates its own OAuth client and each user enters
+ * its ID and secret in Settings. The credential then lives only in that user's local
  * data.json, and every build of this plugin is byte-reproducible from source.
  */
 const AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth";

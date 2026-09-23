@@ -97,7 +97,6 @@ describe("値を埋める項目", () => {
     ["syncNowDesc", () => ja.syncNowDesc("5 分前", "2026/09/13"), ["5 分前", "2026/09/13"]],
     ["targetOnSharedDrive", () => ja.targetOnSharedDrive("営業部 / Vault"), ["営業部 / Vault"]],
     ["targetOnMyDrive", () => ja.targetOnMyDrive("個人メモ"), ["個人メモ"]],
-    ["mountMapping", () => ja.mountMapping("仕事"), ["仕事"]],
     ["errOutsideMount", () => ja.errOutsideMount(".obsidian/x"), [".obsidian/x"]],
     ["errLocalMissing", () => ja.errLocalMissing("a.md"), ["a.md"]],
   ] as [string, () => string, string[]][])("%s が渡された値を置く", (_name, render, expected) => {

@@ -8,7 +8,8 @@
  */
 import { requestUrl } from "obsidian";
 import { Mock, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requestUrlHttp } from "../../src/obsidian/requestUrlHttp";
+import { REQUEST_TIMEOUT_MS, requestUrlHttp } from "../../src/obsidian/requestUrlHttp";
+import { RequestTimeoutError } from "../../src/providers/RemoteProvider";
 
 vi.mock("obsidian", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../tests/helpers/obsidian-mock")>()),
@@ -19,18 +20,23 @@ const mocked = requestUrl as unknown as Mock;
 
 /** 予定された時間制限を握り、テストが好きなときに発火させる。 */
 let fire: (() => void) | null;
+let scheduledMs: number | null;
 let cleared: number;
+/** 時間切れの文面に出る秒数。上限を変えてもテストを書き換えずに済むよう、定数から出す。 */
+const SECONDS = `${Math.round(REQUEST_TIMEOUT_MS / 1000)}s`;
 let realSetTimeout: typeof window.setTimeout;
 let realClearTimeout: typeof window.clearTimeout;
 
 beforeEach(() => {
   mocked.mockReset();
   fire = null;
+  scheduledMs = null;
   cleared = 0;
   realSetTimeout = window.setTimeout;
   realClearTimeout = window.clearTimeout;
-  (window as { setTimeout: unknown }).setTimeout = (fn: () => void) => {
+  (window as { setTimeout: unknown }).setTimeout = (fn: () => void, ms: number) => {
     fire = fn;
+    scheduledMs = ms;
     return 1;
   };
   (window as { clearTimeout: unknown }).clearTimeout = () => {
@@ -92,7 +98,10 @@ describe("requestUrlHttp", () => {
 
     (fire as () => void)();
 
-    await expect(p).rejects.toThrow(/timed out after 120s/);
+    expect(scheduledMs).toBe(REQUEST_TIMEOUT_MS);
+    await expect(p).rejects.toThrow(`timed out after ${SECONDS}`);
+    // 再試行のラッパは、これを見て送り直さない。
+    await expect(p).rejects.toBeInstanceOf(RequestTimeoutError);
   });
 
   it("時間切れの文面にホストだけを出す（クエリを漏らさない）", async () => {
@@ -117,6 +126,24 @@ describe("requestUrlHttp", () => {
   it("成功したらタイマーを片付ける（残ると後から誤って発火する）", async () => {
     mocked.mockResolvedValue({ status: 200, headers: {}, arrayBuffer: new ArrayBuffer(0), text: "" });
     await requestUrlHttp("GET", "https://example.test/a", {});
+
+    expect(cleared).toBe(1);
+  });
+
+  it("時間切れのときもタイマーを片付ける", async () => {
+    mocked.mockReturnValue(new Promise(() => undefined));
+    const p = requestUrlHttp("GET", "https://example.test/a", {});
+
+    (fire as () => void)();
+    await expect(p).rejects.toThrow();
+
+    expect(cleared).toBe(1);
+  });
+
+  it("通信そのものが失敗したときもタイマーを片付ける", async () => {
+    mocked.mockRejectedValue(new Error("net::ERR_INTERNET_DISCONNECTED"));
+
+    await expect(requestUrlHttp("GET", "https://example.test/a", {})).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
 
     expect(cleared).toBe(1);
   });
